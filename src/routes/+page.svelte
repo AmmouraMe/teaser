@@ -101,6 +101,7 @@
 				</label>
 				<label>
 					<span>Your deepest insecurity.</span>
+					<span class="warning">If you lie, we'll know.</span>
 					<textarea bind:value={insecurity} rows="3" spellcheck="false"></textarea>
 				</label>
 				{#if formError}
@@ -210,6 +211,14 @@
 		opacity: 0.7;
 	}
 
+	.warning {
+		font-size: 0.7rem;
+		letter-spacing: 0.2em;
+		text-transform: uppercase;
+		opacity: 0.35;
+		margin-top: -0.3rem;
+	}
+
 	input,
 	textarea {
 		background: none;
@@ -227,6 +236,19 @@
 	input:focus,
 	textarea:focus {
 		border-bottom-color: #fff;
+	}
+
+	input:-webkit-autofill,
+	input:-webkit-autofill:hover,
+	input:-webkit-autofill:focus,
+	textarea:-webkit-autofill,
+	textarea:-webkit-autofill:hover,
+	textarea:-webkit-autofill:focus {
+		-webkit-text-fill-color: #fff;
+		-webkit-box-shadow: 0 0 0px 1000px #000 inset;
+		box-shadow: 0 0 0px 1000px #000 inset;
+		transition: background-color 5000s ease-in-out 0s;
+		caret-color: #fff;
 	}
 
 	.error {
