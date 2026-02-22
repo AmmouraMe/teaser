@@ -100,7 +100,7 @@
 
 	<section class="enter">
 		{#if !showForm && !submitted}
-			<button onclick={() => (showForm = true)}>Enter</button>
+			<button onclick={() => (showForm = true)}>Enter Ruin</button>
 		{/if}
 
 		{#if showForm && !submitted}
@@ -121,7 +121,7 @@
 				{#if formError}
 					<p class="error">{formError}</p>
 				{/if}
-				<button type="submit" disabled={!formValid}>Confess</button>
+				<button type="submit" disabled={!formValid}>Send Truth</button>
 			</form>
 		{/if}
 
