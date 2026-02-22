@@ -55,6 +55,20 @@
 		return nameLie || emailLie || insecurityLie;
 	}
 
+	let formValid = $derived(
+		name.trim().length >= 2 &&
+		/^[a-zA-Z]/.test(name.trim()) &&
+		!/(.)\1{3,}/.test(name.trim()) &&
+		!looksLie(name, fakeName) &&
+		email.includes('@') &&
+		/^[^@]+@[^@]+\.[^@]+$/.test(email) &&
+		!fakeDomains.includes((email.split('@')[1] || '').toLowerCase()) &&
+		!/^(test|fake|asdf|nope|no|none|null)\+?/.test((email.split('@')[0] || '').toLowerCase()) &&
+		insecurity.trim().length >= 5 &&
+		!looksLie(insecurity, fakeInsecurities) &&
+		!/(.)\1{4,}/.test(insecurity.trim())
+	);
+
 	function handleSubmit(e) {
 		e.preventDefault();
 		formError = '';
@@ -75,13 +89,13 @@
 
 <svelte:head>
 	<title>Build your empire. Break your heart.</title>
-	<meta name="description" content="We don't sell dreams. We sell the tools to ruin them." />
+	<meta name="description" content="We don't sell dreams. We give you the tools to ruin them." />
 </svelte:head>
 
 <main>
 	<section class="hero">
 		<p class="tagline">Build your empire. Break your heart.</p>
-		<h1>We don't sell dreams. We sell the tools to ruin them.</h1>
+		<h1>We don't sell dreams. We give you the tools to ruin them.</h1>
 	</section>
 
 	<section class="enter">
@@ -93,21 +107,21 @@
 			<form onsubmit={handleSubmit} novalidate>
 				<label>
 					<span>Your name.</span>
-					<input type="text" bind:value={name} autocomplete="off" spellcheck="false" />
+					<input type="text" bind:value={name} autocomplete="off" spellcheck="false" required />
 				</label>
 				<label>
 					<span>Your email.</span>
-					<input type="email" bind:value={email} autocomplete="off" />
+					<input type="email" bind:value={email} autocomplete="off" required />
 				</label>
 				<label>
 					<span>Your deepest insecurity.</span>
 					<span class="warning">If you lie, we'll know.</span>
-					<textarea bind:value={insecurity} rows="3" spellcheck="false"></textarea>
+					<textarea bind:value={insecurity} rows="3" spellcheck="false" required></textarea>
 				</label>
 				{#if formError}
 					<p class="error">{formError}</p>
 				{/if}
-				<button type="submit">Submit</button>
+				<button type="submit" disabled={!formValid}>Confess</button>
 			</form>
 		{/if}
 
@@ -261,6 +275,12 @@
 	form button {
 		align-self: center;
 		margin-top: 1rem;
+	}
+
+	form button:disabled {
+		opacity: 0.25;
+		cursor: default;
+		pointer-events: none;
 	}
 
 	.confirmation {
