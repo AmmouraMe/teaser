@@ -7,7 +7,7 @@ export async function load({ locals, platform }) {
 	}
 
 	const kv = platform?.env?.WAITLIST;
-	/** @type {Array<{ name: string; email: string; insecurity: string; ts: string }>} */
+	/** @type {Array<{ name: string; email: string; insecurity: string; ts: string; server?: Record<string, any>; client?: Record<string, any> }>} */
 	const entries = [];
 
 	if (kv) {
