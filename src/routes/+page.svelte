@@ -2,6 +2,14 @@
 	import { enhance } from '$app/forms';
 	import { page } from '$app/stores';
 
+	const siteName = 'Ammoura';
+	const siteTitle = 'Build Your Empire | Ammoura';
+	const siteDescription = "We don't sell dreams. We give you the tools to crush them. Join the waitlist and start building.";
+	const ogImagePath = '/og.png';
+
+	let canonicalUrl = $derived($page.url.origin + $page.url.pathname);
+	let ogImageUrl = $derived($page.url.origin + ogImagePath);
+
 	/** @type {{ form: import('./$types').ActionData }} */
 	let { form } = $props();
 
@@ -174,8 +182,69 @@
 </script>
 
 <svelte:head>
-	<title>Build your empire.</title>
-	<meta name="description" content="We don't sell dreams. We give you the tools to crush them." />
+	<!-- Primary Meta Tags -->
+	<title>{siteTitle}</title>
+	<meta name="description" content={siteDescription} />
+	<meta name="author" content={siteName} />
+	<meta name="robots" content="index, follow" />
+	<link rel="canonical" href={canonicalUrl} />
+
+	<!-- Open Graph / Facebook -->
+	<meta property="og:type" content="website" />
+	<meta property="og:url" content={canonicalUrl} />
+	<meta property="og:title" content={siteTitle} />
+	<meta property="og:description" content={siteDescription} />
+	<meta property="og:image" content={ogImageUrl} />
+	<meta property="og:image:width" content="1200" />
+	<meta property="og:image:height" content="630" />
+	<meta property="og:image:alt" content="Ammoura — Build Your Empire" />
+	<meta property="og:site_name" content={siteName} />
+	<meta property="og:locale" content="en_US" />
+
+	<!-- Twitter Card -->
+	<meta name="twitter:card" content="summary_large_image" />
+	<meta name="twitter:url" content={canonicalUrl} />
+	<meta name="twitter:title" content={siteTitle} />
+	<meta name="twitter:description" content={siteDescription} />
+	<meta name="twitter:image" content={ogImageUrl} />
+	<meta name="twitter:image:alt" content="Ammoura — Build Your Empire" />
+
+	<!-- Structured Data (JSON-LD) -->
+	{@html `<script type="application/ld+json">${JSON.stringify({
+		"@context": "https://schema.org",
+		"@graph": [
+			{
+				"@type": "WebSite",
+				"@id": canonicalUrl + "#website",
+				"url": canonicalUrl,
+				"name": siteName,
+				"description": siteDescription,
+				"inLanguage": "en-US"
+			},
+			{
+				"@type": "WebPage",
+				"@id": canonicalUrl + "#webpage",
+				"url": canonicalUrl,
+				"name": siteTitle,
+				"description": siteDescription,
+				"isPartOf": { "@id": canonicalUrl + "#website" },
+				"inLanguage": "en-US"
+			},
+			{
+				"@type": "Organization",
+				"@id": canonicalUrl + "#organization",
+				"name": siteName,
+				"url": canonicalUrl,
+				"logo": {
+					"@type": "ImageObject",
+					"url": $page.url.origin + "/favicon.png"
+				},
+				"sameAs": [
+					"https://discord.gg/dPRvKFS9dq"
+				]
+			}
+		]
+	})}</script>`}
 </svelte:head>
 
 <main>
