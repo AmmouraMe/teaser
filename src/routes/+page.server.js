@@ -281,6 +281,15 @@ export const actions = {
 				// Unique key per submission so repeat signups are never overwritten
 				const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 				await kv.put(`entry:${uid}`, JSON.stringify(entry));
+
+				// ── Track unique email signups ──
+				const emailKey = `seen_email:${email.toLowerCase()}`;
+				const alreadySeen = await kv.get(emailKey);
+				if (!alreadySeen) {
+					await kv.put(emailKey, '1');
+					const current = parseInt((await kv.get('counter:unique_emails')) || '0', 10);
+					await kv.put('counter:unique_emails', String(current + 1));
+				}
 			} else {
 				console.warn('WAITLIST KV namespace not available (local dev?)');
 			}

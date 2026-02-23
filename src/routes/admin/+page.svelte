@@ -69,6 +69,21 @@
 	{#if data.entries.length === 0}
 		<p class="empty">No entries yet.</p>
 	{:else}
+		<div class="stats-bar">
+			<div class="stat">
+				<span class="stat-value">{data.entries.length}</span>
+				<span class="stat-label">Total Submissions</span>
+			</div>
+			<div class="stat">
+				<span class="stat-value">{data.uniqueEmails}</span>
+				<span class="stat-label">Unique Emails</span>
+			</div>
+			<div class="stat">
+				<span class="stat-value">{data.uniqueDiscords}</span>
+				<span class="stat-label">Discord Linked</span>
+			</div>
+		</div>
+
 		<p class="count">{data.entries.length} {data.entries.length === 1 ? 'entry' : 'entries'}</p>
 
 		<div class="table-wrap">
@@ -308,6 +323,36 @@
 		color: #888;
 		font-size: 0.9rem;
 		margin-bottom: 1rem;
+	}
+
+	.stats-bar {
+		display: flex;
+		gap: 1rem;
+		margin-bottom: 1.5rem;
+	}
+
+	.stat {
+		flex: 1;
+		background: #181818;
+		border: 1px solid #2a2a2a;
+		border-radius: 8px;
+		padding: 1rem 1.25rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.stat-value {
+		font-size: 1.75rem;
+		font-weight: 700;
+		color: #fff;
+	}
+
+	.stat-label {
+		font-size: 0.75rem;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: #888;
 	}
 
 	.empty {

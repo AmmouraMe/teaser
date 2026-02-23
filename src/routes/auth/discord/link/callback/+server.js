@@ -67,6 +67,15 @@ export async function GET({ url, platform }) {
 			} else {
 				console.warn(`No waitlist entry found for ${email}`);
 			}
+
+			// ── Track unique Discord signups ──
+			const discordKey = `seen_discord:${user.id}`;
+			const alreadySeen = await kv.get(discordKey);
+			if (!alreadySeen) {
+				await kv.put(discordKey, '1');
+				const current = parseInt((await kv.get('counter:unique_discords')) || '0', 10);
+				await kv.put('counter:unique_discords', String(current + 1));
+			}
 		}
 	} catch (err) {
 		console.error('KV update for Discord link failed:', err);
