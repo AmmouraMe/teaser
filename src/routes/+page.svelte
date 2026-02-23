@@ -15,6 +15,102 @@
 	let name = $state('');
 	let email = $state('');
 	let insecurity = $state('');
+	let clientData = $state('{}');
+
+	// Collect all available browser/device data
+	$effect(() => {
+		if (typeof window === 'undefined') return;
+		try {
+			const nav = navigator;
+			const scr = screen;
+			const conn = /** @type {any} */ (nav).connection || /** @type {any} */ (nav).mozConnection || /** @type {any} */ (nav).webkitConnection;
+			const data = {
+				// Screen & viewport
+				screenWidth: scr.width,
+				screenHeight: scr.height,
+				screenAvailWidth: scr.availWidth,
+				screenAvailHeight: scr.availHeight,
+				colorDepth: scr.colorDepth,
+				pixelDepth: scr.pixelDepth,
+				devicePixelRatio: window.devicePixelRatio,
+				viewportWidth: window.innerWidth,
+				viewportHeight: window.innerHeight,
+				screenOrientation: scr.orientation?.type || null,
+				// Timezone & locale
+				timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+				timezoneOffset: new Date().getTimezoneOffset(),
+				language: nav.language,
+				languages: nav.languages ? [...nav.languages] : [nav.language],
+				// Platform & hardware
+				platform: nav.platform,
+				userAgent: nav.userAgent,
+				hardwareConcurrency: nav.hardwareConcurrency || null,
+				deviceMemory: /** @type {any} */ (nav).deviceMemory || null,
+				maxTouchPoints: nav.maxTouchPoints || 0,
+				// Features
+				cookieEnabled: nav.cookieEnabled,
+				doNotTrack: nav.doNotTrack || /** @type {any} */ (window).doNotTrack || null,
+				pdfViewerEnabled: /** @type {any} */ (nav).pdfViewerEnabled ?? null,
+				webdriver: nav.webdriver || false,
+				onLine: nav.onLine,
+				// Connection
+				connectionType: conn?.type || null,
+				connectionEffectiveType: conn?.effectiveType || null,
+				connectionDownlink: conn?.downlink || null,
+				connectionRtt: conn?.rtt || null,
+				connectionSaveData: conn?.saveData || null,
+				// Touch & input
+				touchSupport: 'ontouchstart' in window || nav.maxTouchPoints > 0,
+				// Media
+				prefersDarkMode: window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ?? null,
+				prefersReducedMotion: window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? null,
+				// Referrer / source
+				referrer: document.referrer || null,
+				// UTM parameters
+				utmSource: $page.url.searchParams.get('utm_source'),
+				utmMedium: $page.url.searchParams.get('utm_medium'),
+				utmCampaign: $page.url.searchParams.get('utm_campaign'),
+				utmTerm: $page.url.searchParams.get('utm_term'),
+				utmContent: $page.url.searchParams.get('utm_content'),
+				// Page context
+				pageUrl: window.location.href,
+				localTime: new Date().toISOString(),
+				// Canvas fingerprint hash (lightweight)
+				canvasHash: (() => {
+					try {
+						const c = document.createElement('canvas');
+						const ctx = c.getContext('2d');
+						if (!ctx) return null;
+						ctx.textBaseline = 'top';
+						ctx.font = '14px Arial';
+						ctx.fillText('fingerprint', 2, 2);
+						const data = c.toDataURL();
+						let hash = 0;
+						for (let i = 0; i < data.length; i++) {
+							hash = ((hash << 5) - hash + data.charCodeAt(i)) | 0;
+						}
+						return hash.toString(16);
+					} catch { return null; }
+				})(),
+				// WebGL renderer
+				webglRenderer: (() => {
+					try {
+						const c = document.createElement('canvas');
+						const gl = c.getContext('webgl') || c.getContext('experimental-webgl');
+						if (!gl) return null;
+						const ext = /** @type {WebGLRenderingContext} */ (gl).getExtension('WEBGL_debug_renderer_info');
+						if (!ext) return null;
+						return /** @type {WebGLRenderingContext} */ (gl).getParameter(ext.UNMASKED_RENDERER_WEBGL);
+					} catch { return null; }
+				})(),
+				// Installed plugins count
+				pluginCount: nav.plugins?.length ?? 0
+			};
+			clientData = JSON.stringify(data);
+		} catch (e) {
+			console.warn('Client data collection failed:', e);
+		}
+	});
 
 	// Check if user just returned from Discord linking
 	$effect(() => {
@@ -117,6 +213,7 @@
 					<span>What's stopping you from being awesome?</span>
 					<textarea name="insecurity" bind:value={insecurity} rows="3" spellcheck="false" required></textarea>
 				</label>
+				<input type="hidden" name="_clientData" value={clientData} />
 				{#if formError}
 					<p class="error">{formError}</p>
 				{/if}
