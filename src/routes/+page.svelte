@@ -101,8 +101,7 @@
 					<input name="email" type="email" bind:value={email} autocomplete="off" required />
 				</label>
 				<label>
-					<span>Your deepest insecurity.</span>
-					<span class="warning">If you lie, we'll know.</span>
+					<span>What's stopping you from being awesome?</span>
 					<textarea name="insecurity" bind:value={insecurity} rows="3" spellcheck="false" required></textarea>
 				</label>
 				{#if formError}

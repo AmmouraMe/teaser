@@ -28,7 +28,7 @@
 						<th>#</th>
 						<th>Name</th>
 						<th>Email</th>
-						<th>Deepest Insecurity</th>
+						<th>What's Stopping Them</th>
 						<th>Submitted</th>
 					</tr>
 				</thead>
@@ -49,12 +49,19 @@
 </main>
 
 <style>
+	:global(body) {
+		background: #0e0e0e;
+		margin: 0;
+	}
+
 	main {
 		max-width: 960px;
-		margin: 2rem auto;
-		padding: 0 1.5rem;
+		margin: 0 auto;
+		padding: 2rem 1.5rem;
+		min-height: 100vh;
 		font-family: system-ui, -apple-system, sans-serif;
 		color: #e0e0e0;
+		background: #0e0e0e;
 	}
 
 	header {

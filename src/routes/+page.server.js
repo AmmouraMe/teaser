@@ -60,7 +60,7 @@ async function notifyDiscord(webhookUrl, entry) {
 				fields: [
 					{ name: 'Name', value: entry.name, inline: true },
 					{ name: 'Email', value: entry.email, inline: true },
-					{ name: 'Deepest Insecurity', value: entry.insecurity },
+					{ name: 'What\'s Stopping Them', value: entry.insecurity },
 					{ name: 'Submitted', value: entry.ts, inline: true }
 				]
 			}
