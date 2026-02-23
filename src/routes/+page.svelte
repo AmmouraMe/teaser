@@ -89,18 +89,18 @@
 
 <svelte:head>
 	<title>Build your empire. Break your heart.</title>
-	<meta name="description" content="We don't sell dreams. We give you the tools to ruin them." />
+	<meta name="description" content="We don't sell dreams. We give you the tools to crush them." />
 </svelte:head>
 
 <main>
 	<section class="hero">
 		<p class="tagline">Build your empire. Break your heart.</p>
-		<h1>We don't sell dreams. We give you the tools to ruin them.</h1>
+		<h1>We don't sell dreams. We give you the tools to crush them.</h1>
 	</section>
 
 	<section class="enter">
 		{#if !showForm && !submitted}
-			<button onclick={() => (showForm = true)}>Enter Ruin</button>
+			<button onclick={() => (showForm = true)}>Start the Crush</button>
 		{/if}
 
 		{#if showForm && !submitted}
@@ -121,7 +121,7 @@
 				{#if formError}
 					<p class="error">{formError}</p>
 				{/if}
-				<button type="submit" disabled={!formValid}>Send Truth</button>
+				<button type="submit" disabled={!formValid}>Join Waitlist</button>
 			</form>
 		{/if}
 
