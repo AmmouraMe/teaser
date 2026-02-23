@@ -52,39 +52,113 @@ function isLying(name, email, insecurity) {
  * @param {{ name: string; email: string; insecurity: string; ts: string; server: Record<string, any>; client: Record<string, any> }} entry
  */
 async function notifyDiscord(webhookUrl, entry) {
-	const geo = [entry.server.city, entry.server.region, entry.server.country].filter(Boolean).join(', ') || 'Unknown';
-	const device = entry.client.platform || entry.server.secChUaPlatform || 'Unknown';
-	const screen = entry.client.screenWidth ? `${entry.client.screenWidth}x${entry.client.screenHeight} @${entry.client.devicePixelRatio}x` : 'Unknown';
-	const tz = entry.client.timezone || entry.server.timezone || 'Unknown';
-	const lang = entry.client.language || 'Unknown';
-	const conn = entry.client.connectionEffectiveType || 'Unknown';
-	const referrer = entry.client.referrer || entry.server.referer || 'Direct';
-	const utm = [entry.client.utmSource, entry.client.utmMedium, entry.client.utmCampaign].filter(Boolean).join(' / ') || 'None';
-	const isp = entry.server.asOrganization || 'Unknown';
+	const s = entry.server || {};
+	const c = entry.client || {};
 
-	const payload = {
-		embeds: [
-			{
-				title: '\uD83D\uDE80 New Waitlist Entry',
-				color: 0xffffff,
-				fields: [
-					{ name: 'Name', value: entry.name, inline: true },
-					{ name: 'Email', value: entry.email, inline: true },
-					{ name: 'What\'s Stopping Them', value: entry.insecurity },
-					{ name: '\uD83C\uDF0D Location', value: geo, inline: true },
-					{ name: '\uD83D\uDCF1 Device', value: device, inline: true },
-					{ name: '\uD83D\uDDA5\uFE0F Screen', value: screen, inline: true },
-					{ name: '\uD83D\uDD52 Timezone', value: tz, inline: true },
-					{ name: '\uD83C\uDF10 Language', value: lang, inline: true },
-					{ name: '\uD83D\uDCE1 Connection', value: conn, inline: true },
-					{ name: '\uD83D\uDD17 Referrer', value: referrer, inline: true },
-					{ name: '\uD83D\uDCCA UTM', value: utm, inline: true },
-					{ name: '\uD83C\uDFE2 ISP', value: isp, inline: true },
-					{ name: 'Submitted', value: entry.ts, inline: true }
-				]
-			}
-		]
-	};
+	/**
+	 * Build a formatted field string from an object, picking only the given keys
+	 * that have non-null, non-empty values.
+	 */
+	function pickLines(obj, keys) {
+		if (!obj) return '';
+		return keys
+			.filter(k => obj[k] !== null && obj[k] !== undefined && obj[k] !== '' && obj[k] !== 'null')
+			.map(k => {
+				const v = typeof obj[k] === 'object' ? JSON.stringify(obj[k]) : String(obj[k]);
+				return `**${k}:** ${v}`;
+			})
+			.join('\n');
+	}
+
+	/** Build a formatted field string from all non-null entries in an object */
+	function allLines(obj) {
+		if (!obj || typeof obj !== 'object') return '';
+		return Object.entries(obj)
+			.filter(([, v]) => v !== null && v !== undefined && v !== '' && v !== 'null')
+			.map(([k, v]) => {
+				const val = typeof v === 'object' ? JSON.stringify(v) : String(v);
+				return `**${k}:** ${val}`;
+			})
+			.join('\n');
+	}
+
+	// -- Server key groups (same as admin page) --
+	const geoKeys = ['ip', 'country', 'city', 'region', 'regionCode', 'continent', 'postalCode', 'latitude', 'longitude', 'timezone', 'metroCode'];
+	const netKeys = ['asn', 'asOrganization', 'tlsVersion', 'tlsCipher', 'httpProtocol'];
+	const reqKeys = ['userAgent', 'acceptLanguage', 'referer', 'origin', 'secFetchDest', 'secFetchMode', 'secFetchSite', 'secChUa', 'secChUaMobile', 'secChUaPlatform', 'secChUaPlatformVersion', 'secChUaArch', 'secChUaModel', 'secChUaFullVersion', 'dnt', 'cfRay', 'cfVisitor'];
+
+	// -- Client key groups (same as admin page) --
+	const screenKeys = ['screenWidth', 'screenHeight', 'screenAvailWidth', 'screenAvailHeight', 'colorDepth', 'pixelDepth', 'devicePixelRatio', 'viewportWidth', 'viewportHeight', 'screenOrientation'];
+	const localeKeys = ['timezone', 'timezoneOffset', 'language', 'languages', 'localTime'];
+	const hwKeys = ['platform', 'userAgent', 'hardwareConcurrency', 'deviceMemory', 'maxTouchPoints', 'webglRenderer', 'pluginCount', 'canvasHash'];
+	const featKeys = ['cookieEnabled', 'doNotTrack', 'pdfViewerEnabled', 'webdriver', 'onLine', 'touchSupport', 'prefersDarkMode', 'prefersReducedMotion'];
+	const connKeys = ['connectionType', 'connectionEffectiveType', 'connectionDownlink', 'connectionRtt', 'connectionSaveData'];
+	const refKeys = ['referrer', 'pageUrl', 'utmSource', 'utmMedium', 'utmCampaign', 'utmTerm', 'utmContent'];
+
+	// Build embeds — Discord allows up to 10 embeds per message and 25 fields per embed.
+	// We split into multiple embeds to fit everything.
+
+	// ── Embed 1: Core info + Server geo/network ──
+	const embed1Fields = [
+		{ name: 'Name', value: entry.name, inline: true },
+		{ name: 'Email', value: entry.email, inline: true },
+		{ name: 'Submitted', value: entry.ts, inline: true },
+		{ name: "What's Stopping Them", value: entry.insecurity }
+	];
+
+	const geoBlock = pickLines(s, geoKeys);
+	if (geoBlock) embed1Fields.push({ name: '\uD83C\uDF0D Location & Geo', value: geoBlock });
+
+	const netBlock = pickLines(s, netKeys);
+	if (netBlock) embed1Fields.push({ name: '\uD83D\uDD12 Network & Security', value: netBlock });
+
+	const botBlock = s.botManagement ? allLines(s.botManagement) : '';
+	if (botBlock) embed1Fields.push({ name: '\uD83E\uDD16 Bot Detection', value: botBlock.slice(0, 1024) });
+
+	const reqBlock = pickLines(s, reqKeys);
+	if (reqBlock) embed1Fields.push({ name: '\uD83D\uDCE8 Request Info', value: reqBlock.slice(0, 1024) });
+
+	// ── Embed 2: Client data ──
+	const embed2Fields = [];
+
+	const screenBlock = pickLines(c, screenKeys);
+	if (screenBlock) embed2Fields.push({ name: '\uD83D\uDDA5\uFE0F Screen & Viewport', value: screenBlock });
+
+	const localeBlock = pickLines(c, localeKeys);
+	if (localeBlock) embed2Fields.push({ name: '\uD83D\uDD52 Locale & Time', value: localeBlock });
+
+	const hwBlock = pickLines(c, hwKeys);
+	if (hwBlock) embed2Fields.push({ name: '\u2699\uFE0F Platform & Hardware', value: hwBlock.slice(0, 1024) });
+
+	const featBlock = pickLines(c, featKeys);
+	if (featBlock) embed2Fields.push({ name: '\uD83E\uDDE9 Features & Preferences', value: featBlock });
+
+	const connBlock = pickLines(c, connKeys);
+	if (connBlock) embed2Fields.push({ name: '\uD83D\uDCE1 Connection', value: connBlock });
+
+	const refBlock = pickLines(c, refKeys);
+	if (refBlock) embed2Fields.push({ name: '\uD83D\uDD17 Referrer & UTM', value: refBlock });
+
+	// ── Embed 3 (optional): Raw Headers ──
+	const embeds = [
+		{ title: '\uD83D\uDE80 New Waitlist Entry', color: 0xffffff, fields: embed1Fields }
+	];
+
+	if (embed2Fields.length > 0) {
+		embeds.push({ color: 0xffffff, fields: embed2Fields });
+	}
+
+	if (s.rawHeaders) {
+		const headersJson = JSON.stringify(s.rawHeaders, null, 2);
+		// Discord embed description max is 4096 chars
+		embeds.push({
+			color: 0xffffff,
+			title: '\uD83D\uDCC4 Raw Headers',
+			description: '```json\n' + headersJson.slice(0, 4000) + '\n```'
+		});
+	}
+
+	const payload = { embeds };
 
 	const res = await fetch(webhookUrl, {
 		method: 'POST',
@@ -204,8 +278,9 @@ export const actions = {
 		try {
 			const kv = platform?.env?.WAITLIST;
 			if (kv) {
-				// Key by email (lower-cased) for natural dedup
-				await kv.put(`entry:${email.toLowerCase()}`, JSON.stringify(entry));
+				// Unique key per submission so repeat signups are never overwritten
+				const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+				await kv.put(`entry:${uid}`, JSON.stringify(entry));
 			} else {
 				console.warn('WAITLIST KV namespace not available (local dev?)');
 			}
