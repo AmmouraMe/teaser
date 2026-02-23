@@ -65,14 +65,14 @@
 </script>
 
 <svelte:head>
-	<title>Build your empire. Break your heart.</title>
+	<title>Build your empire.</title>
 	<meta name="description" content="We don't sell dreams. We give you the tools to crush them." />
 </svelte:head>
 
 <main>
 	{#if !showForm && !submitted}
 		<section class="hero">
-			<p class="tagline">Build your empire. Break your heart.</p>
+			<p class="tagline">Build your empire.</p>
 			<h1>We don't sell dreams. We give you the tools to crush them.</h1>
 			<button onclick={() => (showForm = true)}>Start Crush</button>
 		</section>
