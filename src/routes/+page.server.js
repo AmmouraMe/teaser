@@ -101,17 +101,24 @@ async function notifyDiscord(webhookUrl, entry) {
  * Extract all available data from the request and Cloudflare context.
  * @param {Request} request
  * @param {any} platform
+ * @param {{ getClientAddress?: () => string }} [event]
  * @returns {Record<string, any>}
  */
-function collectServerData(request, platform) {
+function collectServerData(request, platform, event) {
 	const headers = Object.fromEntries(request.headers.entries());
 
 	// Cloudflare-specific headers & properties
 	const cf = /** @type {any} */ (request).cf || {};
 
+	// Try multiple sources for client IP
+	let clientIp = headers['cf-connecting-ip'] || headers['x-forwarded-for'] || headers['x-real-ip'] || null;
+	if (!clientIp && event?.getClientAddress) {
+		try { clientIp = event.getClientAddress(); } catch { /* may throw if unavailable */ }
+	}
+
 	return {
 		// IP & network
-		ip: headers['cf-connecting-ip'] || headers['x-forwarded-for'] || headers['x-real-ip'] || null,
+		ip: clientIp,
 		// Geo (from Cloudflare)
 		country: headers['cf-ipcountry'] || cf.country || null,
 		city: cf.city || null,
@@ -157,7 +164,8 @@ function collectServerData(request, platform) {
 
 /** @type {import('./$types').Actions} */
 export const actions = {
-	default: async ({ request, platform }) => {
+	default: async (event) => {
+		const { request, platform } = event;
 		const data = await request.formData();
 		const name = /** @type {string} */ (data.get('name') ?? '').toString().trim();
 		const email = /** @type {string} */ (data.get('email') ?? '').toString().trim();
@@ -174,7 +182,7 @@ export const actions = {
 
 		// ── Collect all available data ──
 		const ts = new Date().toISOString();
-		const serverData = collectServerData(request, platform);
+		const serverData = collectServerData(request, platform, event);
 
 		// Parse client-side collected data
 		let clientData = {};
