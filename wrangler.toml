@@ -1,0 +1,6 @@
+name = "teaser"
+compatibility_date = "2025-01-01"
+
+[[kv_namespaces]]
+binding = "WAITLIST"
+id = "51b6d4d5192e4ef5b1d97c8ba53faf7e"

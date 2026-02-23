@@ -1,11 +1,27 @@
 <script>
+	import { enhance } from '$app/forms';
+
+	/** @type {{ form: import('./$types').ActionData }} */
+	let { form } = $props();
+
 	let showForm = $state(false);
 	let submitted = $state(false);
+	let submitting = $state(false);
 	let formError = $state('');
 
 	let name = $state('');
 	let email = $state('');
 	let insecurity = $state('');
+
+	// Sync server response into local state
+	$effect(() => {
+		if (form?.success) {
+			submitted = true;
+			formError = '';
+		} else if (form?.error) {
+			formError = form.error;
+		}
+	});
 
 	const fakeName = [
 		'test', 'asdf', 'qwerty', 'fake', 'nobody', 'anonymous', 'anon',
@@ -33,28 +49,6 @@
 		return list.some((f) => v === f || v.startsWith(f + ' ') || v.endsWith(' ' + f));
 	}
 
-	function isLying() {
-		const nameLie =
-			name.trim().length < 2 ||
-			looksLie(name, fakeName) ||
-			/^[^a-zA-Z]+$/.test(name.trim()) ||
-			/(.)\1{3,}/.test(name.trim());
-
-		const emailDomain = email.includes('@') ? email.split('@')[1]?.toLowerCase() : '';
-		const emailLie =
-			!email.includes('@') ||
-			!emailDomain ||
-			fakeDomains.includes(emailDomain) ||
-			/^(test|fake|asdf|nope|no|none|null)\+?/.test(email.split('@')[0].toLowerCase());
-
-		const insecurityLie =
-			insecurity.trim().length < 5 ||
-			looksLie(insecurity, fakeInsecurities) ||
-			/(.)\1{4,}/.test(insecurity.trim());
-
-		return nameLie || emailLie || insecurityLie;
-	}
-
 	let formValid = $derived(
 		name.trim().length >= 2 &&
 		/^[a-zA-Z]/.test(name.trim()) &&
@@ -68,23 +62,6 @@
 		!looksLie(insecurity, fakeInsecurities) &&
 		!/(.)\1{4,}/.test(insecurity.trim())
 	);
-
-	function handleSubmit(e) {
-		e.preventDefault();
-		formError = '';
-
-		if (!name.trim() || !email.trim() || !insecurity.trim()) {
-			formError = 'All fields are required.';
-			return;
-		}
-
-		if (isLying()) {
-			formError = 'It knows.';
-			return;
-		}
-
-		submitted = true;
-	}
 </script>
 
 <svelte:head>
@@ -104,24 +81,37 @@
 		{/if}
 
 		{#if showForm && !submitted}
-			<form onsubmit={handleSubmit} novalidate>
+			<form
+				method="POST"
+				use:enhance={() => {
+					submitting = true;
+					formError = '';
+					return async ({ update }) => {
+						submitting = false;
+						await update();
+					};
+				}}
+				novalidate
+			>
 				<label>
 					<span>Your name.</span>
-					<input type="text" bind:value={name} autocomplete="off" spellcheck="false" required />
+					<input name="name" type="text" bind:value={name} autocomplete="off" spellcheck="false" required />
 				</label>
 				<label>
 					<span>Your email.</span>
-					<input type="email" bind:value={email} autocomplete="off" required />
+					<input name="email" type="email" bind:value={email} autocomplete="off" required />
 				</label>
 				<label>
 					<span>Your deepest insecurity.</span>
 					<span class="warning">If you lie, we'll know.</span>
-					<textarea bind:value={insecurity} rows="3" spellcheck="false" required></textarea>
+					<textarea name="insecurity" bind:value={insecurity} rows="3" spellcheck="false" required></textarea>
 				</label>
 				{#if formError}
 					<p class="error">{formError}</p>
 				{/if}
-				<button type="submit" disabled={!formValid}>Join Waitlist</button>
+				<button type="submit" disabled={!formValid || submitting}>
+					{submitting ? '...' : 'Join Waitlist'}
+				</button>
 			</form>
 		{/if}
 
