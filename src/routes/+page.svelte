@@ -70,17 +70,16 @@
 </svelte:head>
 
 <main>
-	<section class="hero">
-		<p class="tagline">Build your empire. Break your heart.</p>
-		<h1>We don't sell dreams. We give you the tools to crush them.</h1>
-	</section>
+	{#if !showForm && !submitted}
+		<section class="hero">
+			<p class="tagline">Build your empire. Break your heart.</p>
+			<h1>We don't sell dreams. We give you the tools to crush them.</h1>
+			<button onclick={() => (showForm = true)}>Start Crush</button>
+		</section>
+	{/if}
 
-	<section class="enter">
-		{#if !showForm && !submitted}
-			<button onclick={() => (showForm = true)}>Start the Crush</button>
-		{/if}
-
-		{#if showForm && !submitted}
+	{#if showForm && !submitted}
+		<section class="enter">
 			<form
 				method="POST"
 				use:enhance={() => {
@@ -113,12 +112,14 @@
 					{submitting ? '...' : 'Join Waitlist'}
 				</button>
 			</form>
-		{/if}
+		</section>
+	{/if}
 
-		{#if submitted}
+	{#if submitted}
+		<section class="enter">
 			<p class="confirmation">We'll be in touch.</p>
-		{/if}
-	</section>
+		</section>
+	{/if}
 </main>
 
 <style>
@@ -136,7 +137,7 @@
 	}
 
 	main {
-		min-height: 200vh;
+		min-height: 100vh;
 		display: flex;
 		flex-direction: column;
 	}
@@ -165,6 +166,7 @@
 		line-height: 1.4;
 		max-width: 700px;
 		letter-spacing: 0.02em;
+		margin-bottom: 3rem;
 	}
 
 	.enter {
