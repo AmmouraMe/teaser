@@ -86,7 +86,7 @@ export async function GET({ url, platform }) {
 							color: 0x5865f2,
 							fields: [
 								{ name: 'Email', value: email, inline: true },
-								{ name: 'Discord', value: `${user.username} (${user.id})`, inline: true }
+								{ name: 'Discord', value: `<@${user.id}>`, inline: true }
 							]
 						}
 					]
