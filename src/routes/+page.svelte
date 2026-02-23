@@ -449,23 +449,26 @@
 	textarea:-webkit-autofill:focus,
 	textarea:-webkit-autofill:active {
 		-webkit-text-fill-color: #fff !important;
-		-webkit-box-shadow: 0 0 0px 1000px #000 inset !important;
-		box-shadow: 0 0 0px 1000px #000 inset !important;
+		-webkit-box-shadow: 0 0 0px 9999px #000 inset !important;
+		box-shadow: 0 0 0px 9999px #000 inset !important;
 		background-color: #000 !important;
 		color: #fff !important;
-		transition: background-color 5000s ease-in-out 0s, color 5000s ease-in-out 0s;
 		caret-color: #fff !important;
-		-webkit-background-clip: text !important;
-		background-clip: text !important;
+		-webkit-appearance: none !important;
+		transition: background-color 9999s ease-in-out 0s,
+			color 9999s ease-in-out 0s,
+			-webkit-text-fill-color 9999s ease-in-out 0s,
+			-webkit-box-shadow 9999s ease-in-out 0s !important;
 	}
 
 	input:-internal-autofill-selected,
 	textarea:-internal-autofill-selected {
 		-webkit-text-fill-color: #fff !important;
-		-webkit-box-shadow: 0 0 0px 1000px #000 inset !important;
-		box-shadow: 0 0 0px 1000px #000 inset !important;
+		-webkit-box-shadow: 0 0 0px 9999px #000 inset !important;
+		box-shadow: 0 0 0px 9999px #000 inset !important;
 		background-color: #000 !important;
 		color: #fff !important;
+		-webkit-appearance: none !important;
 	}
 
 	.error {
