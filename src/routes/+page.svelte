@@ -129,6 +129,29 @@
 		}
 	});
 
+	// Force-override iOS Chrome autofill styling via JS
+	$effect(() => {
+		if (typeof window === 'undefined') return;
+		const fixAutofill = () => {
+			document.querySelectorAll('input:-webkit-autofill, textarea:-webkit-autofill').forEach((el) => {
+				/** @type {HTMLElement} */ (el).style.setProperty('-webkit-text-fill-color', '#fff', 'important');
+				/** @type {HTMLElement} */ (el).style.setProperty('-webkit-box-shadow', '0 0 0px 9999px #000 inset', 'important');
+				/** @type {HTMLElement} */ (el).style.setProperty('background-color', '#000', 'important');
+				/** @type {HTMLElement} */ (el).style.setProperty('color', '#fff', 'important');
+				/** @type {HTMLElement} */ (el).style.setProperty('caret-color', '#fff', 'important');
+			});
+		};
+		// Run on animation events (Chrome fires these on autofill)
+		document.addEventListener('animationstart', fixAutofill, true);
+		const interval = setInterval(fixAutofill, 100);
+		const timeout = setTimeout(() => clearInterval(interval), 5000);
+		return () => {
+			document.removeEventListener('animationstart', fixAutofill, true);
+			clearInterval(interval);
+			clearTimeout(timeout);
+		};
+	});
+
 	// Sync server response into local state
 	$effect(() => {
 		if (form?.success) {
@@ -440,35 +463,69 @@
 		border-bottom-color: #fff;
 	}
 
-	input:-webkit-autofill,
-	input:-webkit-autofill:hover,
-	input:-webkit-autofill:focus,
-	input:-webkit-autofill:active,
-	textarea:-webkit-autofill,
-	textarea:-webkit-autofill:hover,
-	textarea:-webkit-autofill:focus,
-	textarea:-webkit-autofill:active {
+	@keyframes autofill-fix {
+		0%, 100% {
+			background: #000 !important;
+			color: #fff !important;
+			-webkit-text-fill-color: #fff !important;
+		}
+	}
+
+	:global(input:-webkit-autofill),
+	:global(input:-webkit-autofill:hover),
+	:global(input:-webkit-autofill:focus),
+	:global(input:-webkit-autofill:active),
+	:global(textarea:-webkit-autofill),
+	:global(textarea:-webkit-autofill:hover),
+	:global(textarea:-webkit-autofill:focus),
+	:global(textarea:-webkit-autofill:active) {
 		-webkit-text-fill-color: #fff !important;
 		-webkit-box-shadow: 0 0 0px 9999px #000 inset !important;
 		box-shadow: 0 0 0px 9999px #000 inset !important;
 		background-color: #000 !important;
+		background: #000 !important;
 		color: #fff !important;
 		caret-color: #fff !important;
 		-webkit-appearance: none !important;
+		appearance: none !important;
+		animation: autofill-fix 0s forwards !important;
+		-webkit-animation: autofill-fix 0s forwards !important;
 		transition: background-color 9999s ease-in-out 0s,
 			color 9999s ease-in-out 0s,
-			-webkit-text-fill-color 9999s ease-in-out 0s,
-			-webkit-box-shadow 9999s ease-in-out 0s !important;
+			-webkit-text-fill-color 9999s ease-in-out 0s !important;
 	}
 
-	input:-internal-autofill-selected,
-	textarea:-internal-autofill-selected {
+	:global(input:-internal-autofill-selected),
+	:global(textarea:-internal-autofill-selected) {
 		-webkit-text-fill-color: #fff !important;
 		-webkit-box-shadow: 0 0 0px 9999px #000 inset !important;
 		box-shadow: 0 0 0px 9999px #000 inset !important;
 		background-color: #000 !important;
+		background: #000 !important;
 		color: #fff !important;
 		-webkit-appearance: none !important;
+		appearance: none !important;
+		animation: autofill-fix 0s forwards !important;
+		-webkit-animation: autofill-fix 0s forwards !important;
+	}
+
+	:global(select:-webkit-autofill),
+	:global(select:-webkit-autofill:hover),
+	:global(select:-webkit-autofill:focus),
+	:global(select:-webkit-autofill:active) {
+		-webkit-text-fill-color: #fff !important;
+		-webkit-box-shadow: 0 0 0px 9999px #000 inset !important;
+		box-shadow: 0 0 0px 9999px #000 inset !important;
+		background-color: #000 !important;
+		background: #000 !important;
+		color: #fff !important;
+		-webkit-appearance: none !important;
+		appearance: none !important;
+		animation: autofill-fix 0s forwards !important;
+		-webkit-animation: autofill-fix 0s forwards !important;
+		transition: background-color 9999s ease-in-out 0s,
+			color 9999s ease-in-out 0s,
+			-webkit-text-fill-color 9999s ease-in-out 0s !important;
 	}
 
 	.error {
