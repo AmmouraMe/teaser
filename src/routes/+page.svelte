@@ -1,5 +1,6 @@
 <script>
 	import { enhance } from '$app/forms';
+	import { page } from '$app/stores';
 
 	/** @type {{ form: import('./$types').ActionData }} */
 	let { form } = $props();
@@ -8,15 +9,27 @@
 	let submitted = $state(false);
 	let submitting = $state(false);
 	let formError = $state('');
+	let submittedEmail = $state('');
+	let discordLinked = $state(false);
 
 	let name = $state('');
 	let email = $state('');
 	let insecurity = $state('');
 
+	// Check if user just returned from Discord linking
+	$effect(() => {
+		const linked = $page.url.searchParams.get('linked');
+		if (linked === '1') {
+			submitted = true;
+			discordLinked = true;
+		}
+	});
+
 	// Sync server response into local state
 	$effect(() => {
 		if (form?.success) {
 			submitted = true;
+			submittedEmail = form.email || '';
 			formError = '';
 		} else if (form?.error) {
 			formError = form.error;
@@ -116,7 +129,25 @@
 
 	{#if submitted}
 		<section class="enter">
-			<p class="confirmation">We'll be in touch.</p>
+			{#if discordLinked}
+				<p class="confirmation">Discord linked. We'll reach out there first.</p>
+				<p class="discord-prompt">Join the server so you don't miss anything.</p>
+				<a class="discord-btn" href="https://discord.gg/dUnKPHub4U" target="_blank" rel="noopener noreferrer">
+					<svg class="discord-icon" viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+						<path d="M20.317 4.369a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.372-.291a.074.074 0 0 1 .078-.01c3.927 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .079.009c.12.099.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/>
+					</svg>
+					Join Server
+				</a>
+			{:else}
+				<p class="confirmation">We'll be in touch.</p>
+				<p class="discord-prompt">Want to hear about early access faster?</p>
+				<a class="discord-btn" href="/auth/discord/link?email={encodeURIComponent(submittedEmail)}">
+					<svg class="discord-icon" viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+						<path d="M20.317 4.369a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.372-.291a.074.074 0 0 1 .078-.01c3.927 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .079.009c.12.099.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/>
+					</svg>
+					Connect Discord
+				</a>
+			{/if}
 		</section>
 	{/if}
 </main>
@@ -294,6 +325,41 @@
 		letter-spacing: 0.3em;
 		text-transform: uppercase;
 		opacity: 0.7;
+	}
+
+	.discord-prompt {
+		font-size: 0.85rem;
+		letter-spacing: 0.15em;
+		opacity: 0.45;
+		margin-top: 2rem;
+	}
+
+	.discord-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.6rem;
+		margin-top: 1rem;
+		border: 1px solid #5865f2;
+		color: #fff;
+		background: none;
+		font-family: inherit;
+		font-size: 0.9rem;
+		letter-spacing: 0.15em;
+		text-transform: uppercase;
+		text-decoration: none;
+		padding: 0.85rem 2rem;
+		cursor: pointer;
+		transition: background 0.2s, color 0.2s;
+	}
+
+	.discord-btn:hover {
+		background: #5865f2;
+		color: #fff;
+	}
+
+	.discord-icon {
+		width: 1.2em;
+		height: 1.2em;
 	}
 </style>
 

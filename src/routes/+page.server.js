@@ -127,6 +127,6 @@ export const actions = {
 			console.error('Discord notify failed:', err);
 		}
 
-		return { success: true };
+		return { success: true, email };
 	}
 };
