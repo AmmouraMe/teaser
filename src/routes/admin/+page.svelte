@@ -1,8 +1,26 @@
 <script>
+	import { onMount } from 'svelte';
+
 	/** @type {{ data: import('./$types').PageData }} */
 	let { data } = $props();
 
 	let expandedRows = $state(new Set());
+
+	const COOKIE_NAME = 'admin_session';
+	const LS_KEY = 'admin_session';
+
+	onMount(() => {
+		// Persist the session cookie to localStorage
+		const match = document.cookie.split('; ').find(c => c.startsWith(COOKIE_NAME + '='));
+		if (match) {
+			localStorage.setItem(LS_KEY, match.split('=').slice(1).join('='));
+		}
+	});
+
+	function handleLogout() {
+		localStorage.removeItem(LS_KEY);
+		window.location.href = '/auth/logout';
+	}
 
 	function toggleRow(i) {
 		const next = new Set(expandedRows);
@@ -62,7 +80,7 @@
 		<h1>Waitlist Entries</h1>
 		<div class="meta">
 			<span class="user">Logged in as <strong>{data.user.username}</strong></span>
-			<a href="/auth/logout" class="logout">Logout</a>
+			<button onclick={handleLogout} class="logout">Logout</button>
 		</div>
 	</header>
 
@@ -314,6 +332,11 @@
 	.logout {
 		color: #f66;
 		text-decoration: none;
+		background: none;
+		border: none;
+		cursor: pointer;
+		font: inherit;
+		padding: 0;
 	}
 	.logout:hover {
 		text-decoration: underline;

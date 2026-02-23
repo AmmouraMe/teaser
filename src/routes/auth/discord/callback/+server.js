@@ -52,11 +52,11 @@ export async function GET({ url, platform, cookies }) {
 		throw error(403, `Access denied. You are not ${ALLOWED_USER}.`);
 	}
 
-	// Create signed session cookie
+	// Create signed session cookie (not httpOnly so client JS can persist to localStorage)
 	const session = await createSession(user.username, clientSecret);
 	cookies.set(COOKIE_NAME, session, {
 		path: '/',
-		httpOnly: true,
+		httpOnly: false,
 		secure: url.protocol === 'https:',
 		sameSite: 'lax',
 		maxAge: 7 * 24 * 60 * 60 // 7 days
