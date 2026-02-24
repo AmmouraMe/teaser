@@ -1,0 +1,9 @@
+tunnel: ammoura-dev
+credentials-file: C:\Users\monag\.cloudflared\22fe58c9-1857-4a1b-a2c3-ea991081c542.json
+
+ingress:
+  - hostname: ammoura-dev.starspace.group
+    service: http://localhost:4297
+    originRequest:
+      noTLSVerify: true
+  - service: http_status:404
