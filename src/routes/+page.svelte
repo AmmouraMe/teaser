@@ -384,61 +384,74 @@
 		color: #fff;
 		font-family: 'Georgia', serif;
 		scroll-behavior: smooth;
+		-webkit-text-size-adjust: 100%;
 	}
 
 	main {
 		min-height: 100vh;
+		min-height: 100dvh;
 		display: flex;
 		flex-direction: column;
 	}
 
+	/* ── Hero ── */
 	.hero {
-		height: 100vh;
+		min-height: 100vh;
+		min-height: 100dvh;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		padding: 2rem;
+		padding: 1.5rem 1.25rem;
+		padding-top: env(safe-area-inset-top, 1.5rem);
+		padding-bottom: env(safe-area-inset-bottom, 1.5rem);
 		text-align: center;
 	}
 
 	.tagline {
-		font-size: clamp(0.75rem, 2vw, 1rem);
-		letter-spacing: 0.3em;
+		font-size: 0.7rem;
+		letter-spacing: 0.25em;
 		text-transform: uppercase;
 		opacity: 0.4;
-		margin-bottom: 2.5rem;
+		margin-bottom: 1.75rem;
 	}
 
 	h1 {
-		font-size: clamp(1.4rem, 4vw, 2.5rem);
+		font-size: 1.3rem;
 		font-weight: 400;
-		line-height: 1.4;
+		line-height: 1.5;
 		max-width: 700px;
 		letter-spacing: 0.02em;
-		margin-bottom: 3rem;
+		margin-bottom: 2.25rem;
+		padding: 0 0.25rem;
 	}
 
+	/* ── Enter / confirmation section ── */
 	.enter {
 		min-height: 100vh;
+		min-height: 100dvh;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		padding: 4rem 2rem;
+		padding: 2.5rem 1.25rem;
+		padding-bottom: calc(2.5rem + env(safe-area-inset-bottom, 0px));
 	}
 
+	/* ── Buttons ── */
 	button {
 		background: none;
 		border: 1px solid #fff;
 		color: #fff;
 		font-family: inherit;
-		font-size: 1rem;
+		font-size: 0.9rem;
 		letter-spacing: 0.2em;
 		text-transform: uppercase;
-		padding: 1rem 3rem;
+		padding: 0.9rem 2rem;
+		min-height: 48px;
 		cursor: pointer;
 		transition: background 0.2s, color 0.2s;
+		-webkit-tap-highlight-color: transparent;
 	}
 
 	button:hover {
@@ -446,10 +459,22 @@
 		color: #000;
 	}
 
+	@media (hover: none) {
+		button:active {
+			background: #fff;
+			color: #000;
+		}
+		button:hover {
+			background: none;
+			color: #fff;
+		}
+	}
+
+	/* ── Form ── */
 	form {
 		display: flex;
 		flex-direction: column;
-		gap: 2rem;
+		gap: 1.5rem;
 		width: 100%;
 		max-width: 480px;
 	}
@@ -457,12 +482,12 @@
 	label {
 		display: flex;
 		flex-direction: column;
-		gap: 0.6rem;
+		gap: 0.5rem;
 	}
 
 	label span {
-		font-size: 0.85rem;
-		letter-spacing: 0.15em;
+		font-size: 0.8rem;
+		letter-spacing: 0.12em;
 		text-transform: uppercase;
 		opacity: 0.7;
 	}
@@ -482,11 +507,14 @@
 		border-bottom: 1px solid rgba(255, 255, 255, 0.4);
 		color: #fff;
 		font-family: inherit;
+		/* 16px prevents iOS auto-zoom on focus */
 		font-size: 1rem;
-		padding: 0.5rem 0;
+		padding: 0.6rem 0;
 		outline: none;
 		resize: none;
 		transition: border-color 0.2s;
+		border-radius: 0;
+		-webkit-appearance: none;
 	}
 
 	input:focus,
@@ -505,7 +533,8 @@
 
 	form button {
 		align-self: center;
-		margin-top: 1rem;
+		margin-top: 0.75rem;
+		width: 100%;
 	}
 
 	form button:disabled {
@@ -514,36 +543,42 @@
 		pointer-events: none;
 	}
 
+	/* ── Confirmation / Discord ── */
 	.confirmation {
-		font-size: 1rem;
-		letter-spacing: 0.3em;
+		font-size: 0.9rem;
+		letter-spacing: 0.25em;
 		text-transform: uppercase;
 		opacity: 0.7;
+		text-align: center;
 	}
 
 	.discord-prompt {
-		font-size: 0.85rem;
-		letter-spacing: 0.15em;
+		font-size: 0.8rem;
+		letter-spacing: 0.12em;
 		opacity: 0.45;
-		margin-top: 2rem;
+		margin-top: 1.5rem;
+		text-align: center;
 	}
 
 	.discord-btn {
 		display: inline-flex;
 		align-items: center;
+		justify-content: center;
 		gap: 0.6rem;
 		margin-top: 1rem;
 		border: 1px solid #5865f2;
 		color: #fff;
 		background: none;
 		font-family: inherit;
-		font-size: 0.9rem;
+		font-size: 0.85rem;
 		letter-spacing: 0.15em;
 		text-transform: uppercase;
 		text-decoration: none;
-		padding: 0.85rem 2rem;
+		padding: 0.85rem 1.75rem;
+		min-height: 48px;
 		cursor: pointer;
 		transition: background 0.2s, color 0.2s;
+		-webkit-tap-highlight-color: transparent;
 	}
 
 	.discord-btn:hover {
@@ -551,9 +586,90 @@
 		color: #fff;
 	}
 
+	@media (hover: none) {
+		.discord-btn:active {
+			background: #5865f2;
+			color: #fff;
+		}
+		.discord-btn:hover {
+			background: none;
+			color: #fff;
+		}
+	}
+
 	.discord-icon {
 		width: 1.2em;
 		height: 1.2em;
+	}
+
+	/* ── Tablet and up (>=640px) ── */
+	@media (min-width: 640px) {
+		.hero {
+			padding: 2rem;
+		}
+
+		.tagline {
+			font-size: 0.85rem;
+			letter-spacing: 0.3em;
+			margin-bottom: 2.5rem;
+		}
+
+		h1 {
+			font-size: clamp(1.5rem, 3.5vw, 2.5rem);
+			line-height: 1.4;
+			margin-bottom: 3rem;
+			padding: 0;
+		}
+
+		.enter {
+			padding: 4rem 2rem;
+		}
+
+		button {
+			font-size: 1rem;
+			padding: 1rem 3rem;
+		}
+
+		form {
+			gap: 2rem;
+		}
+
+		form button {
+			width: auto;
+			margin-top: 1rem;
+		}
+
+		label span {
+			font-size: 0.85rem;
+			letter-spacing: 0.15em;
+		}
+
+		.confirmation {
+			font-size: 1rem;
+			letter-spacing: 0.3em;
+		}
+
+		.discord-prompt {
+			font-size: 0.85rem;
+			letter-spacing: 0.15em;
+			margin-top: 2rem;
+		}
+
+		.discord-btn {
+			font-size: 0.9rem;
+			padding: 0.85rem 2rem;
+		}
+	}
+
+	/* ── Desktop (>=1024px) ── */
+	@media (min-width: 1024px) {
+		.tagline {
+			font-size: 1rem;
+		}
+
+		h1 {
+			font-size: 2.5rem;
+		}
 	}
 </style>
 
