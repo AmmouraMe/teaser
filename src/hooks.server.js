@@ -12,5 +12,17 @@ export async function handle({ event, resolve }) {
 		}
 	}
 
-	return resolve(event);
+	const response = await resolve(event);
+
+	// Prevent caching of HTML pages so browsers always get the latest
+	// version (which references content-hashed JS/CSS assets).
+	// This fixes stale pages on iOS Chrome, Cloudflare CDN, etc.
+	const contentType = response.headers.get('content-type') || '';
+	if (contentType.includes('text/html')) {
+		response.headers.set('cache-control', 'no-cache, no-store, must-revalidate');
+		response.headers.set('pragma', 'no-cache');
+		response.headers.set('expires', '0');
+	}
+
+	return response;
 }
