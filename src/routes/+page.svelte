@@ -132,21 +132,52 @@
 	// Force-override iOS Chrome autofill styling via JS
 	$effect(() => {
 		if (typeof window === 'undefined') return;
-		const fixAutofill = () => {
-			document.querySelectorAll('input:-webkit-autofill, textarea:-webkit-autofill').forEach((el) => {
-				/** @type {HTMLElement} */ (el).style.setProperty('-webkit-text-fill-color', '#fff', 'important');
-				/** @type {HTMLElement} */ (el).style.setProperty('-webkit-box-shadow', '0 0 0px 9999px #000 inset', 'important');
-				/** @type {HTMLElement} */ (el).style.setProperty('background-color', '#000', 'important');
-				/** @type {HTMLElement} */ (el).style.setProperty('color', '#fff', 'important');
-				/** @type {HTMLElement} */ (el).style.setProperty('caret-color', '#fff', 'important');
-			});
+
+		/** @param {HTMLElement} el */
+		const forceStyles = (el) => {
+			el.style.setProperty('-webkit-text-fill-color', '#fff', 'important');
+			el.style.setProperty('-webkit-box-shadow', '0 0 0px 9999px #000 inset', 'important');
+			el.style.setProperty('box-shadow', '0 0 0px 9999px #000 inset', 'important');
+			el.style.setProperty('background-color', '#000', 'important');
+			el.style.setProperty('color', '#fff', 'important');
+			el.style.setProperty('caret-color', '#fff', 'important');
 		};
-		// Run on animation events (Chrome fires these on autofill)
-		document.addEventListener('animationstart', fixAutofill, true);
-		const interval = setInterval(fixAutofill, 100);
-		const timeout = setTimeout(() => clearInterval(interval), 5000);
+
+		// Apply to all inputs/textareas regardless of autofill state (iOS may not
+		// expose :-webkit-autofill to querySelectorAll)
+		const fixAll = () => {
+			document.querySelectorAll('input, textarea').forEach((el) => {
+				const computed = getComputedStyle(el);
+				// Detect autofill: background deviates from expected black
+				if (
+					computed.backgroundColor !== 'rgb(0, 0, 0)' &&
+					computed.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+					computed.backgroundColor !== 'transparent'
+				) {
+					forceStyles(/** @type {HTMLElement} */ (el));
+				}
+			});
+			// Also try the pseudo-class selector (works on desktop Chrome)
+			try {
+				document.querySelectorAll('input:-webkit-autofill, textarea:-webkit-autofill').forEach((el) => {
+					forceStyles(/** @type {HTMLElement} */ (el));
+				});
+			} catch (_) { /* selector not supported */ }
+		};
+
+		// Listen for animationstart (Chrome fires on autofill) and input/change
+		document.addEventListener('animationstart', fixAll, true);
+		document.addEventListener('input', fixAll, true);
+		document.addEventListener('change', fixAll, true);
+
+		// Poll for autofill changes — iOS Chrome doesn't fire events reliably
+		const interval = setInterval(fixAll, 200);
+		const timeout = setTimeout(() => clearInterval(interval), 10000);
+
 		return () => {
-			document.removeEventListener('animationstart', fixAutofill, true);
+			document.removeEventListener('animationstart', fixAll, true);
+			document.removeEventListener('input', fixAll, true);
+			document.removeEventListener('change', fixAll, true);
 			clearInterval(interval);
 			clearTimeout(timeout);
 		};
@@ -463,70 +494,7 @@
 		border-bottom-color: #fff;
 	}
 
-	@keyframes autofill-fix {
-		0%, 100% {
-			background: #000 !important;
-			color: #fff !important;
-			-webkit-text-fill-color: #fff !important;
-		}
-	}
-
-	:global(input:-webkit-autofill),
-	:global(input:-webkit-autofill:hover),
-	:global(input:-webkit-autofill:focus),
-	:global(input:-webkit-autofill:active),
-	:global(textarea:-webkit-autofill),
-	:global(textarea:-webkit-autofill:hover),
-	:global(textarea:-webkit-autofill:focus),
-	:global(textarea:-webkit-autofill:active) {
-		-webkit-text-fill-color: #fff !important;
-		-webkit-box-shadow: 0 0 0px 9999px #000 inset !important;
-		box-shadow: 0 0 0px 9999px #000 inset !important;
-		background-color: #000 !important;
-		background: #000 !important;
-		color: #fff !important;
-		caret-color: #fff !important;
-		-webkit-appearance: none !important;
-		appearance: none !important;
-		animation: autofill-fix 0s forwards !important;
-		-webkit-animation: autofill-fix 0s forwards !important;
-		transition: background-color 9999s ease-in-out 0s,
-			color 9999s ease-in-out 0s,
-			-webkit-text-fill-color 9999s ease-in-out 0s !important;
-	}
-
-	:global(input:-internal-autofill-selected),
-	:global(textarea:-internal-autofill-selected) {
-		-webkit-text-fill-color: #fff !important;
-		-webkit-box-shadow: 0 0 0px 9999px #000 inset !important;
-		box-shadow: 0 0 0px 9999px #000 inset !important;
-		background-color: #000 !important;
-		background: #000 !important;
-		color: #fff !important;
-		-webkit-appearance: none !important;
-		appearance: none !important;
-		animation: autofill-fix 0s forwards !important;
-		-webkit-animation: autofill-fix 0s forwards !important;
-	}
-
-	:global(select:-webkit-autofill),
-	:global(select:-webkit-autofill:hover),
-	:global(select:-webkit-autofill:focus),
-	:global(select:-webkit-autofill:active) {
-		-webkit-text-fill-color: #fff !important;
-		-webkit-box-shadow: 0 0 0px 9999px #000 inset !important;
-		box-shadow: 0 0 0px 9999px #000 inset !important;
-		background-color: #000 !important;
-		background: #000 !important;
-		color: #fff !important;
-		-webkit-appearance: none !important;
-		appearance: none !important;
-		animation: autofill-fix 0s forwards !important;
-		-webkit-animation: autofill-fix 0s forwards !important;
-		transition: background-color 9999s ease-in-out 0s,
-			color 9999s ease-in-out 0s,
-			-webkit-text-fill-color 9999s ease-in-out 0s !important;
-	}
+	/* Autofill overrides are in app.html to avoid Svelte scoping and beat UA styles on iOS Chrome */
 
 	.error {
 		font-size: 0.85rem;
