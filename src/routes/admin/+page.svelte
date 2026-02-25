@@ -1,10 +1,12 @@
 <script>
 	import { onMount } from 'svelte';
+	import { enhance } from '$app/forms';
 
 	/** @type {{ data: import('./$types').PageData }} */
 	let { data } = $props();
 
 	let expandedRows = $state(new Set());
+	let showArchived = $state(false);
 
 	const COOKIE_NAME = 'admin_session';
 	const LS_KEY = 'admin_session';
@@ -84,7 +86,7 @@
 		</div>
 	</header>
 
-	{#if data.entries.length === 0}
+	{#if data.entries.length === 0 && data.archivedEntries.length === 0}
 		<p class="empty">No entries yet.</p>
 	{:else}
 		<div class="stats-bar">
@@ -102,7 +104,21 @@
 			</div>
 		</div>
 
-		<p class="count">{data.entries.length} {data.entries.length === 1 ? 'entry' : 'entries'}</p>
+		<div class="tab-bar">
+			<button class="tab" class:active={!showArchived} onclick={() => { showArchived = false; expandedRows = new Set(); }}>
+				Active ({data.entries.length})
+			</button>
+			<button class="tab" class:active={showArchived} onclick={() => { showArchived = true; expandedRows = new Set(); }}>
+				Archived ({data.archivedEntries.length})
+			</button>
+		</div>
+
+		{@const displayEntries = showArchived ? data.archivedEntries : data.entries}
+
+		{#if displayEntries.length === 0}
+			<p class="empty">{showArchived ? 'No archived entries.' : 'No active entries.'}</p>
+		{:else}
+			<p class="count">{displayEntries.length} {displayEntries.length === 1 ? 'entry' : 'entries'}</p>
 
 		<div class="table-wrap">
 			<table>
@@ -116,10 +132,11 @@
 						<th>Device</th>
 						<th>Submitted</th>
 						<th></th>
+						<th></th>
 					</tr>
 				</thead>
 				<tbody>
-					{#each data.entries as entry, i}
+					{#each displayEntries as entry, i}
 						<tr class="summary-row" class:expanded={expandedRows.has(i)} onclick={() => toggleRow(i)}>
 							<td class="num">{i + 1}</td>
 							<td>{entry.name}</td>
@@ -128,11 +145,19 @@
 							<td class="geo">{geoSummary(entry)}</td>
 							<td class="device">{deviceSummary(entry)}</td>
 							<td class="ts">{new Date(entry.ts).toLocaleString()}</td>
+							<td class="archive-cell" onclick={(e) => e.stopPropagation()} onkeydown={() => {}}>
+								<form method="POST" action={showArchived ? '?/unarchive' : '?/archive'} use:enhance={() => { return async ({ update }) => { await update(); expandedRows = new Set(); }; }}>
+									<input type="hidden" name="kvKey" value={entry._kvKey} />
+									<button type="submit" class="archive-btn" title={showArchived ? 'Unarchive' : 'Archive'}>
+										{showArchived ? '↩' : '🗃️'}
+									</button>
+								</form>
+							</td>
 							<td class="toggle">{expandedRows.has(i) ? '▲' : '▼'}</td>
 						</tr>
 						{#if expandedRows.has(i)}
 							<tr class="detail-row">
-								<td colspan="8">
+								<td colspan="9">
 									<div class="detail-grid">
 										<!-- Server Data -->
 										{#if entry.server && nonEmpty(entry.server).length > 0}
@@ -284,6 +309,7 @@
 				</tbody>
 			</table>
 		</div>
+		{/if}
 	{/if}
 </main>
 
@@ -346,6 +372,61 @@
 		color: #888;
 		font-size: 0.9rem;
 		margin-bottom: 1rem;
+	}
+
+	.tab-bar {
+		display: flex;
+		gap: 0;
+		margin-bottom: 1.5rem;
+		border-bottom: 2px solid #333;
+	}
+
+	.tab {
+		background: none;
+		border: none;
+		color: #888;
+		font: inherit;
+		font-size: 0.9rem;
+		padding: 0.6rem 1.25rem;
+		cursor: pointer;
+		border-bottom: 2px solid transparent;
+		margin-bottom: -2px;
+		transition: color 0.15s, border-color 0.15s;
+	}
+
+	.tab:hover {
+		color: #ccc;
+	}
+
+	.tab.active {
+		color: #fff;
+		border-bottom-color: #7db8ff;
+	}
+
+	.archive-cell {
+		width: 2rem;
+		text-align: center;
+		padding: 0;
+	}
+
+	.archive-cell form {
+		display: inline;
+	}
+
+	.archive-btn {
+		background: none;
+		border: none;
+		cursor: pointer;
+		font-size: 0.85rem;
+		padding: 0.3rem 0.4rem;
+		border-radius: 4px;
+		opacity: 0.5;
+		transition: opacity 0.15s, background 0.15s;
+	}
+
+	.archive-btn:hover {
+		opacity: 1;
+		background: rgba(255, 255, 255, 0.08);
 	}
 
 	.stats-bar {
