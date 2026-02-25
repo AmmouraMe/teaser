@@ -304,7 +304,7 @@
 <main>
 	{#if !showForm && !submitted}
 		<section class="hero">
-			<p class="tagline">Build your empire.</p>
+			<p class="tagline">Build your empire</p>
 			<h1>We don't sell dreams. We give you the tools to crush them.</h1>
 			<button onclick={() => (showForm = true)}>Start Crush</button>
 		</section>
@@ -325,11 +325,11 @@
 				novalidate
 			>
 				<label>
-					<span>Your name.</span>
+					<span>Your name</span>
 					<input name="name" type="text" bind:value={name} autocomplete="off" spellcheck="false" required />
 				</label>
 				<label>
-					<span>Your email.</span>
+					<span>Your email</span>
 					<input name="email" type="email" bind:value={email} autocomplete="off" required />
 				</label>
 				<label>
