@@ -31,6 +31,389 @@
 		return () => clearInterval(interval);
 	});
 
+	// ── 3D Wireframe Flight ──
+	let flightCanvas = $state();
+	let taglineEl = $state();
+	const FLIGHT_START = new Date('2026-03-22T00:00:00-05:00').getTime();
+
+	function getFlightProgress() {
+		return Math.max(0, Math.min(1, (Date.now() - FLIGHT_START) / (TARGET - FLIGHT_START)));
+	}
+
+	onMount(() => {
+		if (!flightCanvas) return;
+		const ctx = flightCanvas.getContext('2d');
+		if (!ctx) return;
+
+		// 3D wireframe 747 model — X=right, Y=up, Z=forward (nose)
+		// Fuselage is a series of circular cross-section rings
+		const TWO_PI = Math.PI * 2;
+		const fuseR = 0.12; // fuselage radius
+		const ringSegs = 8;  // segments per ring
+		const rings = [
+			{ z: 1.6, r: 0.0 },   // nose tip
+			{ z: 1.45, r: 0.06 },  // nose cone
+			{ z: 1.2, r: 0.10 },   // cockpit
+			{ z: 0.8, r: fuseR },   // fwd fuselage
+			{ z: 0.0, r: fuseR },   // mid fuselage
+			{ z: -0.6, r: fuseR },  // aft fuselage
+			{ z: -1.0, r: 0.08 },  // tail taper
+			{ z: -1.2, r: 0.03 },  // tail tip
+		];
+
+		// Generate fuselage vertices & edges
+		const V3 = [];
+		const E3 = [];
+
+		for (const ring of rings) {
+			if (ring.r < 0.001) {
+				// Single point (nose/tail tip)
+				V3.push([0, 0, ring.z]);
+			} else {
+				const baseIdx = V3.length;
+				for (let i = 0; i < ringSegs; i++) {
+					const a = (i / ringSegs) * TWO_PI;
+					V3.push([Math.cos(a) * ring.r, Math.sin(a) * ring.r, ring.z]);
+				}
+				// Connect ring segments
+				for (let i = 0; i < ringSegs; i++) {
+					E3.push([baseIdx + i, baseIdx + (i + 1) % ringSegs]);
+				}
+			}
+		}
+
+		// Connect rings longitudinally
+		let prevStart = 0, prevCount = 1;
+		for (let ri = 1; ri < rings.length; ri++) {
+			const currCount = rings[ri].r < 0.001 ? 1 : ringSegs;
+			const currStart = prevStart + prevCount;
+			if (prevCount === 1 && currCount > 1) {
+				// tip to ring
+				for (let i = 0; i < currCount; i++) E3.push([prevStart, currStart + i]);
+			} else if (prevCount > 1 && currCount === 1) {
+				// ring to tip
+				for (let i = 0; i < prevCount; i++) E3.push([prevStart + i, currStart]);
+			} else if (prevCount > 1 && currCount > 1) {
+				// ring to ring — connect corresponding verts
+				for (let i = 0; i < ringSegs; i++) E3.push([prevStart + i, currStart + i]);
+			}
+			prevStart = currStart;
+			prevCount = currCount;
+		}
+
+		// Wings (swept, 3D)
+		const wi = V3.length;
+		V3.push(
+			[fuseR, 0, 0.35],       // 0 left wing root leading
+			[fuseR, 0, -0.05],      // 1 left wing root trailing
+			[1.3, -0.02, -0.05],    // 2 left wingtip leading
+			[1.15, -0.02, -0.2],    // 3 left wingtip trailing
+			[-fuseR, 0, 0.35],      // 4 right wing root leading
+			[-fuseR, 0, -0.05],     // 5 right wing root trailing
+			[-1.3, -0.02, -0.05],   // 6 right wingtip leading
+			[-1.15, -0.02, -0.2],   // 7 right wingtip trailing
+		);
+		// Left wing
+		E3.push([wi,wi+2],[wi+2,wi+3],[wi+3,wi+1],[wi,wi+1]);
+		// Right wing
+		E3.push([wi+4,wi+6],[wi+6,wi+7],[wi+7,wi+5],[wi+4,wi+5]);
+
+		// Engines (nacelles under wings)
+		const ei = V3.length;
+		const eR = 0.035, eLen = 0.22;
+		// Left engine at x=0.55
+		V3.push(
+			[0.55, -0.06, 0.1],              // front center
+			[0.55+eR, -0.06, 0.1],           // front right
+			[0.55-eR, -0.06, 0.1],           // front left
+			[0.55, -0.06+eR, 0.1],           // front top
+			[0.55, -0.06-eR, 0.1],           // front bottom
+			[0.55, -0.06, 0.1-eLen],         // rear center
+			[0.55+eR, -0.06, 0.1-eLen],      // rear right
+			[0.55-eR, -0.06, 0.1-eLen],      // rear left
+			[0.55, -0.06+eR, 0.1-eLen],      // rear top
+			[0.55, -0.06-eR, 0.1-eLen],      // rear bottom
+		);
+		E3.push([ei+1,ei+3],[ei+3,ei+2],[ei+2,ei+4],[ei+4,ei+1]); // front ring
+		E3.push([ei+6,ei+8],[ei+8,ei+7],[ei+7,ei+9],[ei+9,ei+6]); // rear ring
+		E3.push([ei+1,ei+6],[ei+2,ei+7],[ei+3,ei+8],[ei+4,ei+9]); // longerons
+		// Pylon
+		E3.push([ei,wi+2]); // engine to wing approx
+
+		// Right engine at x=-0.55
+		const ei2 = V3.length;
+		V3.push(
+			[-0.55, -0.06, 0.1],
+			[-0.55+eR, -0.06, 0.1],
+			[-0.55-eR, -0.06, 0.1],
+			[-0.55, -0.06+eR, 0.1],
+			[-0.55, -0.06-eR, 0.1],
+			[-0.55, -0.06, 0.1-eLen],
+			[-0.55+eR, -0.06, 0.1-eLen],
+			[-0.55-eR, -0.06, 0.1-eLen],
+			[-0.55, -0.06+eR, 0.1-eLen],
+			[-0.55, -0.06-eR, 0.1-eLen],
+		);
+		E3.push([ei2+1,ei2+3],[ei2+3,ei2+2],[ei2+2,ei2+4],[ei2+4,ei2+1]);
+		E3.push([ei2+6,ei2+8],[ei2+8,ei2+7],[ei2+7,ei2+9],[ei2+9,ei2+6]);
+		E3.push([ei2+1,ei2+6],[ei2+2,ei2+7],[ei2+3,ei2+8],[ei2+4,ei2+9]);
+		E3.push([ei2,wi+6]);
+
+		// Vertical tail fin
+		const fi = V3.length;
+		V3.push(
+			[0, fuseR, -0.6],    // fin base front
+			[0, 0.38, -0.85],    // fin tip
+			[0, 0.35, -1.1],     // fin trailing top
+			[0, fuseR, -1.0],    // fin base rear
+		);
+		E3.push([fi,fi+1],[fi+1,fi+2],[fi+2,fi+3],[fi+3,fi]);
+
+		// Horizontal stabilizers
+		const si = V3.length;
+		V3.push(
+			[fuseR, 0, -0.85],     // left root leading
+			[fuseR, 0, -1.05],     // left root trailing
+			[0.45, 0, -0.95],      // left tip leading
+			[0.4, 0, -1.1],        // left tip trailing
+			[-fuseR, 0, -0.85],    // right root leading
+			[-fuseR, 0, -1.05],    // right root trailing
+			[-0.45, 0, -0.95],     // right tip leading
+			[-0.4, 0, -1.1],       // right tip trailing
+		);
+		E3.push([si,si+2],[si+2,si+3],[si+3,si+1],[si,si+1]);
+		E3.push([si+4,si+6],[si+6,si+7],[si+7,si+5],[si+4,si+5]);
+
+		// 747 upper deck hump
+		const hi = V3.length;
+		V3.push(
+			[0, fuseR + 0.03, 1.2],   // hump front
+			[0, fuseR + 0.05, 0.8],   // hump peak
+			[0, fuseR + 0.03, 0.3],   // hump rear
+		);
+		E3.push([hi, hi+1], [hi+1, hi+2]);
+
+		// 3D math helpers
+		const v3sub = (a, b) => [a[0]-b[0], a[1]-b[1], a[2]-b[2]];
+		const v3cross = (a, b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+		const v3dot = (a, b) => a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+		const v3len = v => Math.sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
+		const v3norm = v => { const l = v3len(v); return l > 1e-8 ? [v[0]/l, v[1]/l, v[2]/l] : [0,1,0]; };
+		const v3scale = (v, s) => [v[0]*s, v[1]*s, v[2]*s];
+		const v3add = (a, b) => [a[0]+b[0], a[1]+b[1], a[2]+b[2]];
+
+		function buildRotationMatrix(fwd, up) {
+			const f = v3norm(fwd);
+			let r = v3norm(v3cross(up, f));
+			const u = v3norm(v3cross(f, r));
+			return { r, u, f };
+		}
+
+		function transformVert(v, mat, pos, scale) {
+			return [
+				(mat.r[0]*v[0] + mat.u[0]*v[1] + mat.f[0]*v[2]) * scale + pos[0],
+				(mat.r[1]*v[0] + mat.u[1]*v[1] + mat.f[1]*v[2]) * scale + pos[1],
+				(mat.r[2]*v[0] + mat.u[2]*v[1] + mat.f[2]*v[2]) * scale + pos[2],
+			];
+		}
+
+		// Quadratic Bézier helpers (2D screen space)
+		const bz = (t, a, b, c) => {
+			const u = 1 - t;
+			return [
+				u*u*a[0] + 2*u*t*b[0] + t*t*c[0],
+				u*u*a[1] + 2*u*t*b[1] + t*t*c[1],
+			];
+		};
+		const bzd = (t, a, b, c) => {
+			const u = 1 - t;
+			return [
+				2*u*(b[0]-a[0]) + 2*t*(c[0]-b[0]),
+				2*u*(b[1]-a[1]) + 2*t*(c[1]-b[1]),
+			];
+		};
+
+		// Tower dimensions (responsive)
+		function getTowerDims(w) {
+			return {
+				towerW: w < 480 ? 8 : 12,
+				towerH: w < 480 ? 45 : 65,
+				towerGap: w < 480 ? 6 : 10,
+			};
+		}
+
+		function getArcPoints(w, h) {
+			// Tower base: centered horizontally, just above the tagline
+			let baseX = w * 0.5;
+			let baseY = h * 0.38;
+			if (taglineEl) {
+				const rect = taglineEl.getBoundingClientRect();
+				const canvasRect = flightCanvas.getBoundingClientRect();
+				baseX = rect.left + rect.width / 2 - canvasRect.left;
+				baseY = rect.top - canvasRect.top - (w < 480 ? 20 : 35);
+			}
+
+			// Arc endpoint = top third of the right (second) tower
+			const { towerW, towerH, towerGap } = getTowerDims(w);
+			const endX = baseX + towerGap / 2 + towerW / 2; // center of right tower
+			const endY = baseY - towerH + towerH / 3;        // top third
+
+			// Start: visible upper-left area
+			const startX = w < 480 ? w * 0.08 : w * 0.1;
+			const startY = w < 480 ? h * 0.2 : h * 0.15;
+
+			// Control point: sweeps the arc upward and across
+			const ctrlX = w < 480 ? w * 0.2 : w * 0.25;
+			const ctrlY = w < 480 ? h * 0.03 : h * -0.02;
+
+			return {
+				P0: [startX, startY],
+				P1: [ctrlX, ctrlY],
+				P2: [endX, endY],
+				towerBaseX: baseX,
+				towerBaseY: baseY,
+			};
+		}
+
+		let frame;
+		function draw() {
+			const dpr = devicePixelRatio || 1;
+			const w = flightCanvas.clientWidth;
+			const h = flightCanvas.clientHeight;
+			if (w === 0 || h === 0) { frame = requestAnimationFrame(draw); return; }
+			flightCanvas.width = w * dpr;
+			flightCanvas.height = h * dpr;
+			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+			ctx.clearRect(0, 0, w, h);
+
+			const { P0, P1, P2, towerBaseX, towerBaseY } = getArcPoints(w, h);
+			const t = getFlightProgress();
+			const N = 120;
+
+			// Plane scale: responsive
+			const planeSize = w < 480 ? Math.min(w, h) * 0.045 : Math.min(w, h) * 0.04;
+
+			// Past path (dotted)
+			ctx.save();
+			ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+			ctx.setLineDash([3, 7]);
+			ctx.lineWidth = w < 480 ? 0.8 : 1;
+			ctx.beginPath();
+			let started = false;
+			for (let i = 0; i <= N; i++) {
+				const s = i / N;
+				if (s > t) break;
+				const p = bz(s, P0, P1, P2);
+				if (!started) { ctx.moveTo(p[0], p[1]); started = true; } else ctx.lineTo(p[0], p[1]);
+			}
+			const pAt = bz(t, P0, P1, P2);
+			if (!started) ctx.moveTo(pAt[0], pAt[1]); else ctx.lineTo(pAt[0], pAt[1]);
+			ctx.stroke();
+			ctx.restore();
+
+			// Future path (solid)
+			ctx.save();
+			ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+			ctx.lineWidth = w < 480 ? 0.8 : 1;
+			ctx.beginPath();
+			ctx.moveTo(pAt[0], pAt[1]);
+			for (let i = 0; i <= N; i++) {
+				const s = i / N;
+				if (s <= t) continue;
+				const p = bz(s, P0, P1, P2);
+				ctx.lineTo(p[0], p[1]);
+			}
+			ctx.stroke();
+			ctx.restore();
+
+			// Endpoint marker
+			const pEnd = bz(1, P0, P1, P2);
+			ctx.beginPath();
+			ctx.arc(pEnd[0], pEnd[1], 2, 0, Math.PI * 2);
+			ctx.fillStyle = 'rgba(255,255,255,0.15)';
+			ctx.fill();
+
+			// Two tall wireframe rectangles at the tagline center
+			const { towerW, towerH, towerGap } = getTowerDims(w);
+			const tx1 = towerBaseX - towerGap / 2 - towerW;
+			const tx2 = towerBaseX + towerGap / 2;
+
+			ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+			ctx.lineWidth = w < 480 ? 0.7 : 1;
+			// Left tower
+			ctx.strokeRect(tx1, towerBaseY - towerH, towerW, towerH);
+			// Right tower
+			ctx.strokeRect(tx2, towerBaseY - towerH, towerW, towerH);
+
+			// 3D plane orientation: fuselage aligns with path tangent
+			const tan = bzd(t, P0, P1, P2);
+			const tangentAngle = Math.atan2(tan[1], tan[0]);
+			const bob = Math.sin(Date.now() * 0.0015) * 0.04;
+
+			// View angle: how we look at the plane in its local frame
+			// viewYaw rotates around model Y (up) — ~80° gives side view
+			// viewPitch rotates around model X — slight tilt shows wing tops
+			const viewYaw = 1.35;
+			const viewPitch = 0.2;
+
+			const cyaw = Math.cos(viewYaw), syaw = Math.sin(viewYaw);
+			const cpitch = Math.cos(viewPitch), spitch = Math.sin(viewPitch);
+
+			// For each 3D model vertex:
+			// 1. Apply view rotation (yaw then pitch) to get 2D side-view shape
+			// 2. Rotate result to align fuselage with arc tangent
+			// The fuselage (Z axis) after yaw projects to screen-X as cos(yaw),
+			// so the fuselage direction in view-space is at angle 0.
+			// We rotate by tangentAngle to align with the path.
+			const finalAngle = tangentAngle + bob;
+			const cfa = Math.cos(finalAngle), sfa = Math.sin(finalAngle);
+
+			const projected = V3.map(([mx, my, mz]) => {
+				// Yaw: rotate around Y axis
+				let x1 = mx * cyaw + mz * syaw;
+				let z1 = -mx * syaw + mz * cyaw;
+				let y1 = my;
+
+				// Pitch: rotate around X axis
+				let y2 = y1 * cpitch - z1 * spitch;
+				let z2 = y1 * spitch + z1 * cpitch;
+				// After view rotation, x1 is screen-right, y2 is screen-up
+				// z2 is depth (ignored for orthographic)
+
+				// Rotate 2D coordinates to align fuselage with tangent
+				const sx = x1 * cfa - (-y2) * sfa;
+				const sy = x1 * sfa + (-y2) * cfa;
+
+				return [
+					pAt[0] + sx * planeSize,
+					pAt[1] + sy * planeSize,
+				];
+			});
+
+			// Wireframe edges
+			ctx.strokeStyle = 'rgba(255,255,255,0.65)';
+			ctx.lineWidth = w < 480 ? 0.7 : 1;
+			for (const [a, b] of E3) {
+				if (!projected[a] || !projected[b]) continue;
+				ctx.beginPath();
+				ctx.moveTo(projected[a][0], projected[a][1]);
+				ctx.lineTo(projected[b][0], projected[b][1]);
+				ctx.stroke();
+			}
+
+			// Glow at plane position
+			ctx.beginPath();
+			ctx.arc(pAt[0], pAt[1], w < 480 ? 2 : 3, 0, Math.PI * 2);
+			ctx.fillStyle = 'rgba(255,255,255,0.5)';
+			ctx.fill();
+
+			frame = requestAnimationFrame(draw);
+		}
+
+		draw();
+		return () => { if (frame) cancelAnimationFrame(frame); };
+	});
+
 	const siteName = 'Ammoura';
 	const siteTitle = 'Build Your Empire | Ammoura';
 	const siteDescription = "We don't sell dreams. We give you the tools to crush them. Join the waitlist and start building.";
@@ -333,7 +716,8 @@
 <main>
 	{#if !showForm && !submitted}
 		<section class="hero">
-			<p class="tagline">Build your empire</p>
+			<canvas class="flight-canvas" bind:this={flightCanvas}></canvas>
+			<p class="tagline" bind:this={taglineEl}>Build your empire</p>
 			<h1>We don't sell dreams. We give you the tools to crush them.</h1>
 			<div class="countdown">
 				<div class="countdown-segment"><span class="countdown-value">{days}</span><span class="countdown-label">Days</span></div>
@@ -508,6 +892,8 @@
 
 	/* ── Hero ── */
 	.hero {
+		position: relative;
+		overflow: hidden;
 		min-height: 100vh;
 		min-height: 100dvh;
 		display: flex;
@@ -518,6 +904,15 @@
 		padding-top: env(safe-area-inset-top, 1.5rem);
 		padding-bottom: env(safe-area-inset-bottom, 1.5rem);
 		text-align: center;
+	}
+
+	.flight-canvas {
+		position: absolute;
+		top: 0;
+		left: 0;
+		width: 100%;
+		height: 100%;
+		pointer-events: none;
 	}
 
 	.tagline {
