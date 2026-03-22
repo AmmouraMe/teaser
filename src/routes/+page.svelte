@@ -1,6 +1,35 @@
 <script>
 	import { enhance } from '$app/forms';
 	import { page } from '$app/stores';
+	import { onMount } from 'svelte';
+
+	// Countdown target: September 11, 2026 at 20:07 EST (UTC-5)
+	const TARGET = new Date('2026-09-11T20:07:00-05:00').getTime();
+	let days = $state('--');
+	let hours = $state('--');
+	let minutes = $state('--');
+	let seconds = $state('--');
+
+	function updateCountdown() {
+		const diff = TARGET - Date.now();
+		if (diff <= 0) {
+			days = '00'; hours = '00'; minutes = '00'; seconds = '00';
+			return false;
+		}
+		days = String(Math.floor(diff / 86400000)).padStart(2, '0');
+		hours = String(Math.floor((diff % 86400000) / 3600000)).padStart(2, '0');
+		minutes = String(Math.floor((diff % 3600000) / 60000)).padStart(2, '0');
+		seconds = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0');
+		return true;
+	}
+
+	onMount(() => {
+		updateCountdown();
+		const interval = setInterval(() => {
+			if (!updateCountdown()) clearInterval(interval);
+		}, 1000);
+		return () => clearInterval(interval);
+	});
 
 	const siteName = 'Ammoura';
 	const siteTitle = 'Build Your Empire | Ammoura';
@@ -306,6 +335,15 @@
 		<section class="hero">
 			<p class="tagline">Build your empire</p>
 			<h1>We don't sell dreams. We give you the tools to crush them.</h1>
+			<div class="countdown">
+				<div class="countdown-segment"><span class="countdown-value">{days}</span><span class="countdown-label">Days</span></div>
+				<span class="countdown-sep">:</span>
+				<div class="countdown-segment"><span class="countdown-value">{hours}</span><span class="countdown-label">Hrs</span></div>
+				<span class="countdown-sep">:</span>
+				<div class="countdown-segment"><span class="countdown-value">{minutes}</span><span class="countdown-label">Min</span></div>
+				<span class="countdown-sep">:</span>
+				<div class="countdown-segment"><span class="countdown-value">{seconds}</span><span class="countdown-label">Sec</span></div>
+			</div>
 			<button onclick={() => (showForm = true)}>Start Crush</button>
 		</section>
 	{/if}
@@ -392,6 +430,80 @@
 		min-height: 100dvh;
 		display: flex;
 		flex-direction: column;
+	}
+
+	/* ── Countdown ── */
+	.countdown {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin-bottom: 2.5rem;
+	}
+
+	.countdown-segment {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		min-width: 3.2rem;
+	}
+
+	.countdown-value {
+		font-size: 1.6rem;
+		letter-spacing: 0.1em;
+		font-variant-numeric: tabular-nums;
+		font-weight: 400;
+	}
+
+	.countdown-label {
+		font-size: 0.6rem;
+		letter-spacing: 0.18em;
+		text-transform: uppercase;
+		opacity: 0.4;
+		margin-top: 0.15rem;
+	}
+
+	.countdown-sep {
+		font-size: 1.3rem;
+		opacity: 0.3;
+		align-self: flex-start;
+		margin-top: 0.15rem;
+	}
+
+	@media (min-width: 480px) {
+		.countdown {
+			gap: 0.75rem;
+		}
+		.countdown-segment {
+			min-width: 4rem;
+		}
+		.countdown-value {
+			font-size: 2.2rem;
+		}
+		.countdown-label {
+			font-size: 0.65rem;
+		}
+		.countdown-sep {
+			font-size: 1.6rem;
+		}
+	}
+
+	@media (min-width: 768px) {
+		.countdown {
+			gap: 1rem;
+		}
+		.countdown-segment {
+			min-width: 5rem;
+		}
+		.countdown-value {
+			font-size: 2.8rem;
+		}
+		.countdown-label {
+			font-size: 0.7rem;
+			letter-spacing: 0.2em;
+		}
+		.countdown-sep {
+			font-size: 2rem;
+		}
 	}
 
 	/* ── Hero ── */
