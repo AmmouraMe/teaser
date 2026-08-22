@@ -1093,9 +1093,9 @@
 		z-index: 10;
 		display: flex;
 		align-items: center;
-		gap: 0.6rem;
-		font-size: 0.6rem;
-		letter-spacing: 0.18em;
+		gap: 0.7rem;
+		font-size: 0.72rem;
+		letter-spacing: 0.14em;
 		text-transform: uppercase;
 	}
 
@@ -1107,23 +1107,26 @@
 			bottom: calc(0.7rem + env(safe-area-inset-bottom, 0px));
 			flex-direction: column;
 			align-items: flex-end;
-			gap: 0.3rem;
-			font-size: 0.55rem;
+			gap: 0.35rem;
+			font-size: 0.68rem;
 		}
 		.site-footer span {
 			display: none;
 		}
 	}
 	.site-footer a {
-		color: rgba(255, 255, 255, 0.4);
+		color: rgba(255, 255, 255, 0.72);
 		text-decoration: none;
+		/* The arc and the 9 can pass behind this, so give the text its own
+		   ground rather than relying on the page being black. */
+		text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
 	}
 	.site-footer a:hover,
 	.site-footer a:focus-visible {
 		color: #fff;
 	}
 	.site-footer span {
-		color: rgba(255, 255, 255, 0.2);
+		color: rgba(255, 255, 255, 0.35);
 	}
 
 	/* ── Play button: track 1 of the album ── */
