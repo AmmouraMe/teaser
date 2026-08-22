@@ -186,13 +186,22 @@
 			const endX = baseX + towerGap / 2 + towerW / 2; // center of right tower
 			const endY = baseY - towerH + towerH / 3;        // top third
 
-			// Start: visible upper-left area
-			const startX = w < 480 ? w * 0.08 : w * 0.1;
-			const startY = w < 480 ? h * 0.2 : h * 0.15;
+			// Anchor the whole arc to the content column, not to the viewport.
+			// Previously the start was derived from `w` while the end tracked the
+			// centred text, so the two drifted apart as the window got squarer —
+			// and `h * -0.02` put the control point above the canvas, where it
+			// was clipped. On a tall desktop window that left the arc stranded
+			// far above the content, reading as "the animation is missing".
+			const narrow = w < 480;
+			const reach = Math.min(w * (narrow ? 0.8 : 0.45), 1000);
+			const rise = Math.min(h * 0.22, 230);
 
-			// Control point: sweeps the arc upward and across
-			const ctrlX = w < 480 ? w * 0.2 : w * 0.25;
-			const ctrlY = w < 480 ? h * 0.03 : h * -0.02;
+			const startX = Math.max(w * 0.04, endX - reach);
+			const startY = baseY - rise * 0.75;
+
+			const ctrlX = startX + (endX - startX) * 0.35;
+			// Clamped so the control point can never leave the canvas.
+			const ctrlY = Math.max(8, baseY - rise * 1.35);
 
 			return {
 				P0: [startX, startY],
