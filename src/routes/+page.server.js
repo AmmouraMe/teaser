@@ -214,7 +214,8 @@ export async function load({ platform, url }) {
 	// 503s is worse than no button.
 	return {
 		providers: configuredProviders(platform?.env),
-		join: url.searchParams.get('join')
+		join: url.searchParams.get('join'),
+		via: url.searchParams.get('via')
 	};
 }
 

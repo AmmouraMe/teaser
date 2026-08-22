@@ -36,7 +36,10 @@ async function finish({ params, url, platform, cookies, request, getClientAddres
 	const provider = params.provider;
 	if (!PROVIDERS.includes(provider)) throw error(404, 'Unknown provider');
 
-	const back = (/** @type {string} */ status) => redirect(303, `/?join=${status}`);
+	// `via` lets the confirmation screen skip the redundant "connect Discord"
+	// step for someone who just signed in with Discord.
+	const back = (/** @type {string} */ status) =>
+		redirect(303, status === 'ok' ? `/?join=ok&via=${provider}` : `/?join=${status}`);
 
 	// The user declined on the provider's consent screen. Not an error.
 	if (extra.error) return back('cancelled');
