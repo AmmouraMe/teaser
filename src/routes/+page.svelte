@@ -36,15 +36,17 @@
 	let taglineEl = $state();
 	const FLIGHT_START = new Date('2026-03-22T00:00:00-05:00').getTime();
 
-	// One full arc per REPLAY_MS while the track plays, looping until it stops.
-	// Fixed speed rather than song-length-derived, so swapping the track later
-	// changes nothing about how the flight reads.
-	const REPLAY_MS = 20000;
-	let replayFrom = $state(/** @type {number | null} */ (null));
+	// While the track is playing, the arc IS the track: the 9 takes off on the
+	// first note and lands on the last. Read straight off the audio element so
+	// pausing and seeking stay in sync for free.
+	let trackStarted = $state(false);
 
 	function getFlightProgress() {
-		if (replayFrom !== null) {
-			return ((Date.now() - replayFrom) % REPLAY_MS) / REPLAY_MS;
+		if (trackStarted && audioEl) {
+			const d = audioEl.duration;
+			if (Number.isFinite(d) && d > 0) {
+				return Math.max(0, Math.min(1, audioEl.currentTime / d));
+			}
 		}
 		// Otherwise the arc is the real countdown: March 22 → September 11.
 		return Math.max(0, Math.min(1, (Date.now() - FLIGHT_START) / (TARGET - FLIGHT_START)));
@@ -287,6 +289,25 @@
 			const tangentAngle = Math.atan2(tan[1], tan[0]);
 			const bob = Math.sin(Date.now() * 0.0015) * 0.04;
 
+			// Dance: the 9 swings perpendicular to its own track, with the swing
+			// driven by the music. Fast attack and slow release, so a kick
+			// punches and then eases out instead of buzzing.
+			const nowMs = Date.now();
+			const dt = lastFrameAt ? Math.min(0.05, (nowMs - lastFrameAt) / 1000) : 0.016;
+			lastFrameAt = nowMs;
+			const target = playing ? readLevel() : 0;
+			level += (target - level) * (target > level ? 0.35 : 0.06);
+			dancePhase += dt * 7;
+
+			const tlen = Math.hypot(tan[0], tan[1]) || 1;
+			// Left-hand normal to the tangent — "up and down" relative to the arc.
+			const nx = -tan[1] / tlen;
+			const ny = tan[0] / tlen;
+			const danceOffset = Math.sin(dancePhase) * level * planeSize * 1.6;
+			// Only the 9 moves; the drawn arc stays put as the track it flies.
+			const px = pAt[0] + nx * danceOffset;
+			const py = pAt[1] + ny * danceOffset;
+
 			// View angle: how we look at the "9" in its local frame
 			// viewYaw rotates around model Y (up)
 			// viewPitch rotates around model X
@@ -319,8 +340,8 @@
 				const sy = x1 * sfa + (-y2) * cfa;
 
 				return [
-					pAt[0] + sx * planeSize,
-					pAt[1] + sy * planeSize,
+					px + sx * planeSize,
+					py + sy * planeSize,
 				];
 			});
 
@@ -364,6 +385,60 @@
 	let audioEl = $state();
 	let playing = $state(false);
 
+	// ── Audio-reactive motion ──
+	// A tap on the audio element so the 9 can move to what is actually playing.
+	// Plain `let`, not $state: the draw loop reads these every frame and none of
+	// it belongs in the reactive graph.
+	let audioCtx = null;
+	let analyser = null;
+	let freqData = null;
+	let level = 0; // smoothed 0..1
+	let dancePhase = 0;
+	let lastFrameAt = 0;
+
+	function initAudioGraph() {
+		if (analyser || !audioEl) return;
+		const AC = window.AudioContext || window.webkitAudioContext;
+		if (!AC) return; // no Web Audio: the 9 rides the track without dancing
+
+		let src = null;
+		try {
+			audioCtx = new AC();
+			src = audioCtx.createMediaElementSource(audioEl);
+			analyser = audioCtx.createAnalyser();
+			analyser.fftSize = 256;
+			analyser.smoothingTimeConstant = 0.7;
+			src.connect(analyser);
+			// Must reach the destination, or routing the element through the
+			// graph silences it.
+			analyser.connect(audioCtx.destination);
+			freqData = new Uint8Array(analyser.frequencyBinCount);
+		} catch (err) {
+			// Once the element is routed into the graph it stops playing through
+			// the normal output. If wiring up failed partway, connect the source
+			// straight to the destination — a 9 that does not dance is a much
+			// smaller problem than a play button that plays silence.
+			console.warn('audio graph unavailable, falling back to direct output', err);
+			analyser = null;
+			freqData = null;
+			try {
+				src?.connect(audioCtx.destination);
+			} catch {
+				/* nothing further to try */
+			}
+		}
+	}
+
+	function readLevel() {
+		if (!analyser || !freqData) return 0;
+		analyser.getByteFrequencyData(freqData);
+		// The low bins carry the kick, which is what reads as a beat.
+		let sum = 0;
+		const bins = Math.min(16, freqData.length);
+		for (let i = 0; i < bins; i++) sum += freqData[i];
+		return sum / (bins * 255);
+	}
+
 	function togglePlay() {
 		if (!audioEl) return;
 		if (playing) audioEl.pause();
@@ -372,12 +447,21 @@
 
 	function onPlay() {
 		playing = true;
-		replayFrom = Date.now();
+		trackStarted = true;
+		initAudioGraph();
+		// Browsers hand back a suspended context until a gesture; this is one.
+		if (audioCtx?.state === 'suspended') audioCtx.resume();
 	}
 
-	function onStop() {
+	// Paused mid-track: hold the 9 where it is rather than snapping back.
+	function onPause() {
 		playing = false;
-		replayFrom = null; // hand the arc back to the real countdown
+	}
+
+	// Track finished: the 9 has landed. Hand the arc back to the real countdown.
+	function onEnded() {
+		playing = false;
+		trackStarted = false;
 	}
 
 	// Brand marks for the join buttons, keyed by provider id.
@@ -694,8 +778,8 @@
 				<span class="play-label">{playing ? 'Playing' : 'Play'}</span>
 				<span class="play-track">BIRTH &middot; davis9001</span>
 			</button>
-			<audio bind:this={audioEl} src="/audio/01-birth.mp3" preload="none"
-				onplay={onPlay} onpause={onStop} onended={onStop}></audio>
+			<audio bind:this={audioEl} src="/audio/01-birth.mp3" preload="metadata"
+				onplay={onPlay} onpause={onPause} onended={onEnded}></audio>
 
 			<form
 				class="join"
