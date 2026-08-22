@@ -1,8 +1,4 @@
-const FAKE_NAMES = [
-	'test', 'asdf', 'qwerty', 'fake', 'nobody', 'anonymous', 'anon',
-	'user', 'admin', 'null', 'undefined', 'none', 'n/a', 'na', 'xxx',
-	'abc', 'aaa', 'bbb', 'ccc', '123', 'john doe', 'jane doe', 'lorem'
-];
+import { configuredProviders } from '$lib/oauth.js';
 
 const FAKE_DOMAINS = [
 	'test.com', 'fake.com', 'example.com', 'mailinator.com', 'throwaway.email',
@@ -11,39 +7,15 @@ const FAKE_DOMAINS = [
 	'spam4.me', 'noemail.com', 'nomail.com', 'nomail.org', 'aol.com.invalid'
 ];
 
-const FAKE_INSECURITIES = [
-	'nothing', 'idk', "i don't know", 'none', 'n/a', 'na', 'no', 'nope',
-	'not sure', 'unsure', 'whatever', 'everything', 'nothing really',
-	'no insecurities', "i'm fine", 'nothing lol', 'lol', 'haha', 'ha',
-	'test', 'asdf', 'qwerty', 'abc', '123', '...', '???', 'pass', 'skip',
-	'rather not say', 'prefer not to say', 'none of your business'
-];
-
-function looksLie(value, list) {
-	const v = value.trim().toLowerCase();
-	return list.some((f) => v === f || v.startsWith(f + ' ') || v.endsWith(' ' + f));
-}
-
-function isLying(name, email, insecurity) {
-	const nameLie =
-		name.trim().length < 2 ||
-		looksLie(name, FAKE_NAMES) ||
-		/^[^a-zA-Z]+$/.test(name.trim()) ||
-		/(.)\1{3,}/.test(name.trim());
-
-	const emailDomain = email.includes('@') ? email.split('@')[1]?.toLowerCase() : '';
-	const emailLie =
+function isFakeEmail(email) {
+	const domain = email.includes('@') ? email.split('@')[1]?.toLowerCase() : '';
+	const local = email.split('@')[0]?.toLowerCase() ?? '';
+	return (
 		!email.includes('@') ||
-		!emailDomain ||
-		FAKE_DOMAINS.includes(emailDomain) ||
-		/^(test|fake|asdf|nope|no|none|null)\+?/.test(email.split('@')[0].toLowerCase());
-
-	const insecurityLie =
-		insecurity.trim().length < 5 ||
-		looksLie(insecurity, FAKE_INSECURITIES) ||
-		/(.)\1{4,}/.test(insecurity.trim());
-
-	return nameLie || emailLie || insecurityLie;
+		!domain ||
+		FAKE_DOMAINS.includes(domain) ||
+		/^(test|fake|asdf|nope|no|none|null)\+?/.test(local)
+	);
 }
 
 /**
@@ -236,21 +208,29 @@ function collectServerData(request, platform, event) {
 	};
 }
 
+/** @type {import('./$types').PageServerLoad} */
+export async function load({ platform, url }) {
+	// Only offer providers that actually have credentials — a button that
+	// 503s is worse than no button.
+	return {
+		providers: configuredProviders(platform?.env),
+		join: url.searchParams.get('join')
+	};
+}
+
 /** @type {import('./$types').Actions} */
 export const actions = {
 	default: async (event) => {
 		const { request, platform } = event;
 		const data = await request.formData();
-		const name = /** @type {string} */ (data.get('name') ?? '').toString().trim();
 		const email = /** @type {string} */ (data.get('email') ?? '').toString().trim();
-		const insecurity = /** @type {string} */ (data.get('insecurity') ?? '').toString().trim();
 
-		// Server-side validation (mirrors client checks)
-		if (!name || !email || !insecurity) {
-			return { success: false, error: 'All fields are required.' };
+		// Email is the only field now — the form is one input and five buttons.
+		if (!email) {
+			return { success: false, error: 'Enter an email.' };
 		}
 
-		if (isLying(name, email, insecurity)) {
+		if (isFakeEmail(email)) {
 			return { success: false, error: 'It knows.' };
 		}
 
@@ -266,10 +246,9 @@ export const actions = {
 		} catch { /* ignore malformed client data */ }
 
 		const entry = {
-			name,
 			email,
-			insecurity,
 			ts,
+			source: 'email',
 			server: serverData,
 			client: clientData
 		};

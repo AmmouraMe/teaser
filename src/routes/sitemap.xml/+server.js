@@ -4,7 +4,9 @@ export function GET({ url }) {
 	const now = new Date().toISOString().split('T')[0];
 
 	const pages = [
-		{ loc: '/', priority: '1.0', changefreq: 'weekly' }
+		{ loc: '/', priority: '1.0', changefreq: 'weekly' },
+		{ loc: '/privacy', priority: '0.3', changefreq: 'yearly' },
+		{ loc: '/terms', priority: '0.3', changefreq: 'yearly' }
 	];
 
 	const xml = `<?xml version="1.0" encoding="UTF-8"?>

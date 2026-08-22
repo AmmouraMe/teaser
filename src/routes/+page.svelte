@@ -36,7 +36,17 @@
 	let taglineEl = $state();
 	const FLIGHT_START = new Date('2026-03-22T00:00:00-05:00').getTime();
 
+	// One full arc per REPLAY_MS while the track plays, looping until it stops.
+	// Fixed speed rather than song-length-derived, so swapping the track later
+	// changes nothing about how the flight reads.
+	const REPLAY_MS = 20000;
+	let replayFrom = $state(/** @type {number | null} */ (null));
+
 	function getFlightProgress() {
+		if (replayFrom !== null) {
+			return ((Date.now() - replayFrom) % REPLAY_MS) / REPLAY_MS;
+		}
+		// Otherwise the arc is the real countdown: March 22 → September 11.
 		return Math.max(0, Math.min(1, (Date.now() - FLIGHT_START) / (TARGET - FLIGHT_START)));
 	}
 
@@ -337,19 +347,54 @@
 	let canonicalUrl = $derived($page.url.origin + $page.url.pathname);
 	let ogImageUrl = $derived($page.url.origin + ogImagePath);
 
-	/** @type {{ form: import('./$types').ActionData }} */
-	let { form } = $props();
+	/** @type {{ form: import('./$types').ActionData; data: import('./$types').PageData }} */
+	let { form, data } = $props();
 
-	let showForm = $state(false);
+	// ── Album track ──
+	// BIRTH is track 1 of Ammoura.me, and its album route is "/" — this page.
+	let audioEl = $state();
+	let playing = $state(false);
+
+	function togglePlay() {
+		if (!audioEl) return;
+		if (playing) audioEl.pause();
+		else audioEl.play().catch(() => { /* blocked or unsupported — leave it */ });
+	}
+
+	function onPlay() {
+		playing = true;
+		replayFrom = Date.now();
+	}
+
+	function onStop() {
+		playing = false;
+		replayFrom = null; // hand the arc back to the real countdown
+	}
+
+	// Brand marks for the join buttons, keyed by provider id.
+	const PROVIDER_ICON = {
+		github: '<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true"><path d="M12 .3a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.4-1.8-1.4-1.8-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2 0-.4-.5-1.6.2-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.4 5.5 18.4 5.8 18.4 5.8c.7 1.6.2 2.8.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .3z"/></svg>',
+		discord: '<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true"><path d="M20.317 4.369a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.372-.291a.074.074 0 0 1 .078-.01c3.927 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .079.009c.12.099.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>',
+		google: '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5a5.6 5.6 0 0 1-2.4 3.6v3h3.9c2.3-2.1 3.5-5.2 3.5-8.8z"/><path fill="#34A853" d="M12 24c3.2 0 5.9-1.1 7.9-2.9l-3.9-3a7.2 7.2 0 0 1-10.7-3.8h-4v3.1A12 12 0 0 0 12 24z"/><path fill="#FBBC05" d="M5.3 14.3a7.1 7.1 0 0 1 0-4.6v-3.1h-4a12 12 0 0 0 0 10.8l4-3.1z"/><path fill="#EA4335" d="M12 4.8c1.8 0 3.4.6 4.6 1.8l3.4-3.4A12 12 0 0 0 1.3 6.6l4 3.1A7.2 7.2 0 0 1 12 4.8z"/></svg>',
+		facebook: '<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true"><path d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.68.24 2.68.24v2.96h-1.51c-1.49 0-1.96.93-1.96 1.89v2.26h3.33l-.53 3.49h-2.8V24C19.61 23.1 24 18.1 24 12.07z"/></svg>',
+		apple: '<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true"><path d="M17.05 12.54c-.03-2.8 2.29-4.15 2.39-4.21-1.3-1.9-3.33-2.17-4.05-2.2-1.72-.17-3.36 1.01-4.23 1.01-.87 0-2.22-.99-3.65-.96-1.88.03-3.61 1.09-4.58 2.77-1.95 3.39-.5 8.4 1.4 11.15.93 1.35 2.04 2.86 3.5 2.8 1.4-.055 1.93-.9 3.63-.9 1.69 0 2.17.9 3.65.87 1.51-.03 2.46-1.37 3.38-2.72 1.07-1.56 1.51-3.07 1.53-3.15-.03-.015-2.94-1.13-2.97-4.46zM14.28 4.2c.77-.93 1.29-2.22 1.14-3.51-1.11.045-2.45.74-3.24 1.67-.71.82-1.33 2.14-1.16 3.4 1.24.095 2.5-.63 3.26-1.56z"/></svg>'
+	};
+
+	// Status coming back from an OAuth round-trip.
+	const JOIN_MESSAGES = {
+		cancelled: 'No problem — use your email instead.',
+		failed: "That didn't go through. Try again, or use your email.",
+		noemail: "That account didn't share an email. Enter one below."
+	};
+	let joinMessage = $derived(data.join && data.join !== 'ok' ? (JOIN_MESSAGES[data.join] ?? '') : '');
+
 	let submitted = $state(false);
 	let submitting = $state(false);
 	let formError = $state('');
 	let submittedEmail = $state('');
 	let discordLinked = $state(false);
 
-	let name = $state('');
 	let email = $state('');
-	let insecurity = $state('');
 	let clientData = $state('{}');
 
 	// Collect all available browser/device data
@@ -447,6 +492,13 @@
 		}
 	});
 
+	$effect(() => {
+		if (data.join === 'ok') {
+			submitted = true;
+			submittedEmail = '';
+		}
+	});
+
 	// Check if user just returned from Discord linking
 	$effect(() => {
 		const linked = $page.url.searchParams.get('linked');
@@ -521,12 +573,7 @@
 		}
 	});
 
-	const fakeName = [
-		'test', 'asdf', 'qwerty', 'fake', 'nobody', 'anonymous', 'anon',
-		'user', 'admin', 'null', 'undefined', 'none', 'n/a', 'na', 'xxx',
-		'abc', 'aaa', 'bbb', 'ccc', '123', 'john doe', 'jane doe', 'lorem'
-	];
-
+	
 	const fakeDomains = [
 		'test.com', 'fake.com', 'example.com', 'mailinator.com', 'throwaway.email',
 		'guerrillamail.com', 'yopmail.com', 'tempmail.com', 'trashmail.com',
@@ -534,31 +581,13 @@
 		'spam4.me', 'noemail.com', 'nomail.com', 'nomail.org', 'aol.com.invalid'
 	];
 
-	const fakeInsecurities = [
-		'nothing', 'idk', 'i don\'t know', 'none', 'n/a', 'na', 'no', 'nope',
-		'not sure', 'unsure', 'whatever', 'everything', 'nothing really',
-		'no insecurities', 'i\'m fine', 'nothing lol', 'lol', 'haha', 'ha',
-		'test', 'asdf', 'qwerty', 'abc', '123', '...', '???', 'pass', 'skip',
-		'rather not say', 'prefer not to say', 'none of your business'
-	];
-
-	function looksLie(value, list) {
-		const v = value.trim().toLowerCase();
-		return list.some((f) => v === f || v.startsWith(f + ' ') || v.endsWith(' ' + f));
-	}
+	
 
 	let formValid = $derived(
-		name.trim().length >= 2 &&
-		/^[a-zA-Z]/.test(name.trim()) &&
-		!/(.)\1{3,}/.test(name.trim()) &&
-		!looksLie(name, fakeName) &&
 		email.includes('@') &&
 		/^[^@]+@[^@]+\.[^@]+$/.test(email) &&
 		!fakeDomains.includes((email.split('@')[1] || '').toLowerCase()) &&
-		!/^(test|fake|asdf|nope|no|none|null)\+?/.test((email.split('@')[0] || '').toLowerCase()) &&
-		insecurity.trim().length >= 5 &&
-		!looksLie(insecurity, fakeInsecurities) &&
-		!/(.)\1{4,}/.test(insecurity.trim())
+		!/^(test|fake|asdf|nope|no|none|null)\+?/.test((email.split('@')[0] || '').toLowerCase())
 	);
 </script>
 
@@ -629,11 +658,12 @@
 </svelte:head>
 
 <main>
-	{#if !showForm && !submitted}
+	{#if !submitted}
 		<section class="hero">
 			<canvas class="flight-canvas" bind:this={flightCanvas}></canvas>
 			<p class="tagline" bind:this={taglineEl}>Build your empire</p>
 			<h1>We don't sell dreams. We give you the tools to crush them.</h1>
+
 			<div class="countdown">
 				<div class="countdown-segment"><span class="countdown-value">{days}</span><span class="countdown-label">Days</span></div>
 				<span class="countdown-sep">:</span>
@@ -643,13 +673,23 @@
 				<span class="countdown-sep">:</span>
 				<div class="countdown-segment"><span class="countdown-value">{seconds}</span><span class="countdown-label">Sec</span></div>
 			</div>
-			<button onclick={() => (showForm = true)}>Start Crush</button>
-		</section>
-	{/if}
 
-	{#if showForm && !submitted}
-		<section class="enter">
+			<!-- Track 1 of Ammoura.me. Playing it re-runs the flight on a loop. -->
+			<button class="play-btn" onclick={togglePlay} aria-pressed={playing}
+				aria-label={playing ? 'Pause BIRTH' : 'Play BIRTH by davis9001'}>
+				{#if playing}
+					<svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+				{:else}
+					<svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14z"/></svg>
+				{/if}
+				<span class="play-label">{playing ? 'Playing' : 'Play'}</span>
+				<span class="play-track">BIRTH &middot; davis9001</span>
+			</button>
+			<audio bind:this={audioEl} src="/audio/01-birth.mp3" preload="none"
+				onplay={onPlay} onpause={onStop} onended={onStop}></audio>
+
 			<form
+				class="join"
 				method="POST"
 				use:enhance={() => {
 					submitting = true;
@@ -661,26 +701,41 @@
 				}}
 				novalidate
 			>
-				<label>
-					<span>Your name</span>
-					<input name="name" type="text" bind:value={name} autocomplete="off" spellcheck="false" required />
-				</label>
-				<label>
-					<span>Your email</span>
-					<input name="email" type="email" bind:value={email} autocomplete="off" required />
-				</label>
-				<label>
-					<span>What's stopping you from being awesome?</span>
-					<textarea name="insecurity" bind:value={insecurity} rows="3" spellcheck="false" required></textarea>
-				</label>
-				<input type="hidden" name="_clientData" value={clientData} />
+				<div class="join-row">
+					<input
+						name="email"
+						type="email"
+						bind:value={email}
+						placeholder="you@example.com"
+						aria-label="Email address"
+						autocomplete="email"
+						required
+					/>
+					<input type="hidden" name="_clientData" value={clientData} />
+					<button type="submit" disabled={!formValid || submitting}>
+						{submitting ? '...' : 'Join'}
+					</button>
+				</div>
 				{#if formError}
 					<p class="error">{formError}</p>
 				{/if}
-				<button type="submit" disabled={!formValid || submitting}>
-					{submitting ? '...' : 'Join Waitlist'}
-				</button>
+				{#if joinMessage}
+					<p class="error">{joinMessage}</p>
+				{/if}
 			</form>
+
+			{#if data.providers?.length}
+				<p class="or">or</p>
+				<div class="providers">
+					{#each data.providers as p (p.id)}
+						<a class="provider provider-{p.id}" href="/auth/join/{p.id}"
+							aria-label="Join with {p.label}" title="Join with {p.label}">
+							{@html PROVIDER_ICON[p.id]}
+							<span class="provider-label">{p.label}</span>
+						</a>
+					{/each}
+				</div>
+			{/if}
 		</section>
 	{/if}
 
@@ -708,6 +763,13 @@
 		</section>
 	{/if}
 </main>
+
+<footer class="site-footer">
+	<a href="/privacy">Privacy Policy</a>
+	<span aria-hidden="true">&middot;</span>
+	<a href="/terms">Terms of Service</a>
+</footer>
+
 
 <style>
 	:global(*, *::before, *::after) {
@@ -901,19 +963,6 @@
 		max-width: 480px;
 	}
 
-	label {
-		display: flex;
-		flex-direction: column;
-		gap: 0.5rem;
-	}
-
-	label span {
-		font-size: 0.8rem;
-		letter-spacing: 0.12em;
-		text-transform: uppercase;
-		opacity: 0.7;
-	}
-
 	.warning {
 		font-size: 0.7rem;
 		letter-spacing: 0.2em;
@@ -923,26 +972,8 @@
 	}
 
 	input,
-	textarea {
-		background: none;
-		border: none;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.4);
-		color: #fff;
-		font-family: inherit;
-		/* 16px prevents iOS auto-zoom on focus */
-		font-size: 1rem;
-		padding: 0.6rem 0;
-		outline: none;
-		resize: none;
-		transition: border-color 0.2s;
-		border-radius: 0;
-		-webkit-appearance: none;
-	}
 
 	input:focus,
-	textarea:focus {
-		border-bottom-color: #fff;
-	}
 
 	/* Autofill overrides are in app.html to avoid Svelte scoping and beat UA styles on iOS Chrome */
 
@@ -963,6 +994,170 @@
 		opacity: 0.25;
 		cursor: default;
 		pointer-events: none;
+	}
+
+
+	.site-footer {
+		display: flex;
+		justify-content: center;
+		flex-wrap: wrap;
+		gap: 0.75rem;
+		padding: 0 1.5rem 2.5rem;
+		font-size: 0.65rem;
+		letter-spacing: 0.2em;
+		text-transform: uppercase;
+	}
+	.site-footer a {
+		color: rgba(255, 255, 255, 0.4);
+		text-decoration: none;
+	}
+	.site-footer a:hover,
+	.site-footer a:focus-visible {
+		color: #fff;
+	}
+	.site-footer span {
+		color: rgba(255, 255, 255, 0.2);
+	}
+
+	/* ── Play button: track 1 of the album ── */
+	.play-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.6rem;
+		margin: 0 auto 2rem;
+		padding: 0.7rem 1.4rem;
+		border: 1px solid rgba(255, 255, 255, 0.4);
+		border-radius: 999px;
+		min-height: 44px;
+		font-size: 0.7rem;
+	}
+	.play-btn:hover,
+	.play-btn:focus-visible {
+		background: #fff;
+		color: #000;
+		border-color: #fff;
+	}
+	.play-btn[aria-pressed='true'] {
+		border-color: #fff;
+	}
+	.play-label {
+		letter-spacing: 0.2em;
+	}
+	.play-track {
+		letter-spacing: 0.12em;
+		opacity: 0.55;
+		text-transform: none;
+	}
+	.play-btn:hover .play-track,
+	.play-btn:focus-visible .play-track {
+		opacity: 0.75;
+	}
+
+	/* ── Single-row join form ── */
+	.join {
+		width: 100%;
+		max-width: 30rem;
+		margin: 0 auto;
+	}
+	.join-row {
+		display: flex;
+		gap: 0.75rem;
+		align-items: stretch;
+	}
+	.join-row input {
+		flex: 1 1 auto;
+		min-width: 0;
+		background: none;
+		border: none;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+		color: #fff;
+		font-family: inherit;
+		font-size: 1rem;
+		padding: 0.6rem 0;
+		border-radius: 0;
+	}
+	.join-row input::placeholder {
+		color: rgba(255, 255, 255, 0.3);
+	}
+	.join-row input:focus {
+		outline: none;
+		border-bottom-color: #fff;
+	}
+	.join-row button {
+		flex: 0 0 auto;
+		margin-top: 0;
+		width: auto;
+		align-self: stretch;
+		padding: 0.7rem 1.6rem;
+	}
+	.join-row button:disabled {
+		opacity: 0.25;
+		cursor: default;
+		pointer-events: none;
+	}
+
+	/* ── Provider row ── */
+	.or {
+		margin: 1.75rem 0 1rem;
+		font-size: 0.65rem;
+		letter-spacing: 0.3em;
+		text-transform: uppercase;
+		opacity: 0.4;
+	}
+	.providers {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 0.6rem;
+	}
+	.provider {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.65rem 1.1rem;
+		min-height: 44px;
+		border: 1px solid rgba(255, 255, 255, 0.25);
+		border-radius: 4px;
+		color: #fff;
+		text-decoration: none;
+		font-size: 0.7rem;
+		letter-spacing: 0.15em;
+		text-transform: uppercase;
+		transition: border-color 0.2s, background 0.2s;
+		-webkit-tap-highlight-color: transparent;
+	}
+	.provider:hover,
+	.provider:focus-visible {
+		border-color: #fff;
+		background: rgba(255, 255, 255, 0.07);
+	}
+	.provider :global(svg) {
+		flex: 0 0 auto;
+	}
+
+	/* On narrow screens the labels crowd out; leave the marks alone. */
+	@media (max-width: 560px) {
+		.provider-label {
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			overflow: hidden;
+			clip: rect(0 0 0 0);
+			white-space: nowrap;
+		}
+		.provider {
+			padding: 0.65rem 0.9rem;
+		}
+		.play-track {
+			display: none;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.provider,
+		.play-btn {
+			transition: none;
+		}
 	}
 
 	/* ── Confirmation / Discord ── */
@@ -1059,27 +1254,6 @@
 		form button {
 			width: auto;
 			margin-top: 1rem;
-		}
-
-		label span {
-			font-size: 0.85rem;
-			letter-spacing: 0.15em;
-		}
-
-		.confirmation {
-			font-size: 1rem;
-			letter-spacing: 0.3em;
-		}
-
-		.discord-prompt {
-			font-size: 0.85rem;
-			letter-spacing: 0.15em;
-			margin-top: 2rem;
-		}
-
-		.discord-btn {
-			font-size: 0.9rem;
-			padding: 0.85rem 2rem;
 		}
 	}
 
