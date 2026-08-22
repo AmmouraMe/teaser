@@ -289,21 +289,21 @@
 			const tangentAngle = Math.atan2(tan[1], tan[0]);
 			const bob = Math.sin(Date.now() * 0.0015) * 0.04;
 
-			// Dance: the 9 swings perpendicular to its own track, with the swing
-			// driven by the music. Fast attack and slow release, so a kick
-			// punches and then eases out instead of buzzing.
+			// Dance: the 9 swings perpendicular to its own track, driven by the
+			// music. Tuned short and twitchy — a small swing that reacts on the
+			// transient rather than riding a smoothed average.
 			const nowMs = Date.now();
 			const dt = lastFrameAt ? Math.min(0.05, (nowMs - lastFrameAt) / 1000) : 0.016;
 			lastFrameAt = nowMs;
 			const target = playing ? readLevel() : 0;
-			level += (target - level) * (target > level ? 0.35 : 0.06);
-			dancePhase += dt * 7;
+			level += (target - level) * (target > level ? DANCE_ATTACK : DANCE_RELEASE);
+			dancePhase += dt * DANCE_SPEED;
 
 			const tlen = Math.hypot(tan[0], tan[1]) || 1;
 			// Left-hand normal to the tangent — "up and down" relative to the arc.
 			const nx = -tan[1] / tlen;
 			const ny = tan[0] / tlen;
-			const danceOffset = Math.sin(dancePhase) * level * planeSize * 1.6;
+			const danceOffset = Math.sin(dancePhase) * level * planeSize * DANCE_HEIGHT;
 			// Only the 9 moves; the drawn arc stays put as the track it flies.
 			const px = pAt[0] + nx * danceOffset;
 			const py = pAt[1] + ny * danceOffset;
@@ -389,6 +389,12 @@
 	// A tap on the audio element so the 9 can move to what is actually playing.
 	// Plain `let`, not $state: the draw loop reads these every frame and none of
 	// it belongs in the reactive graph.
+	// Dance feel — the four numbers worth turning.
+	const DANCE_HEIGHT = 0.55; // swing, in multiples of the glyph size
+	const DANCE_SPEED = 17; // radians per second of the swing
+	const DANCE_ATTACK = 0.8; // how fast the swing grows on a hit (0..1 per frame)
+	const DANCE_RELEASE = 0.28; // how fast it settles again
+
 	let audioCtx = null;
 	let analyser = null;
 	let freqData = null;
@@ -407,7 +413,7 @@
 			src = audioCtx.createMediaElementSource(audioEl);
 			analyser = audioCtx.createAnalyser();
 			analyser.fftSize = 256;
-			analyser.smoothingTimeConstant = 0.7;
+			analyser.smoothingTimeConstant = 0.12; // low: we want the transient, not an average
 			src.connect(analyser);
 			// Must reach the destination, or routing the element through the
 			// graph silences it.
