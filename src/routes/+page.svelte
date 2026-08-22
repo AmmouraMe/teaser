@@ -1084,15 +1084,35 @@
 		pointer-events: none;
 	}
 
+	/* Pinned bottom-right. The hero is 100vh with an absolutely positioned
+	   canvas, so this needs to sit above both. */
 	.site-footer {
+		position: fixed;
+		right: calc(1.25rem + env(safe-area-inset-right, 0px));
+		bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+		z-index: 10;
 		display: flex;
-		justify-content: center;
-		flex-wrap: wrap;
-		gap: 0.75rem;
-		padding: 0 1.5rem 2.5rem;
-		font-size: 0.65rem;
-		letter-spacing: 0.2em;
+		align-items: center;
+		gap: 0.6rem;
+		font-size: 0.6rem;
+		letter-spacing: 0.18em;
 		text-transform: uppercase;
+	}
+
+	/* On narrow screens it would sit on top of the provider buttons, so stack
+	   it tight into the corner instead. */
+	@media (max-width: 560px) {
+		.site-footer {
+			right: calc(0.9rem + env(safe-area-inset-right, 0px));
+			bottom: calc(0.7rem + env(safe-area-inset-bottom, 0px));
+			flex-direction: column;
+			align-items: flex-end;
+			gap: 0.3rem;
+			font-size: 0.55rem;
+		}
+		.site-footer span {
+			display: none;
+		}
 	}
 	.site-footer a {
 		color: rgba(255, 255, 255, 0.4);
