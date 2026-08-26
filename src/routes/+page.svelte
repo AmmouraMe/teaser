@@ -187,6 +187,8 @@
 		}
 
 		function getArcPoints(w, h) {
+			const { towerW, towerH, towerGap } = getTowerDims(w);
+
 			// Tower base: centered horizontally, just above the tagline
 			let baseX = w * 0.5;
 			let baseY = h * 0.38;
@@ -197,8 +199,16 @@
 				baseY = rect.top - canvasRect.top - (w < 480 ? 20 : 35);
 			}
 
+			// Everything here is drawn *upward* from baseY, and baseY tracks the
+			// tagline. On a phone the tagline sits close to the top — Georgia is
+			// wider than the fallback we develop against, so the headline wraps to
+			// three lines and pushes the block up — which put the towers at a
+			// negative y, off the top of the canvas. The hero no longer clips, so
+			// that is no longer a hard cut, but the glyph still belongs on screen:
+			// keep it there whatever the text above it does.
+			baseY = Math.max(baseY, towerH + 12);
+
 			// Arc endpoint = top third of the right (second) tower
-			const { towerW, towerH, towerGap } = getTowerDims(w);
 			const endX = baseX + towerGap / 2 + towerW / 2; // center of right tower
 			const endY = baseY - towerH + towerH / 3;        // top third
 
@@ -213,7 +223,7 @@
 			const rise = Math.min(h * 0.22, 230);
 
 			const startX = Math.max(w * 0.04, endX - reach);
-			const startY = baseY - rise * 0.75;
+			const startY = Math.max(8, baseY - rise * 0.75);
 
 			const ctrlX = startX + (endX - startX) * 0.35;
 			// Clamped so the control point can never leave the canvas.
@@ -944,7 +954,13 @@
 	/* ── Hero ── */
 	.hero {
 		position: relative;
-		overflow: hidden;
+		/* Was overflow:hidden, which is why the 9 came off the top of the page on
+		   a phone: the hero centres its content, so anything taller than the
+		   viewport overflows in *both* directions and the top half is cut and
+		   unreachable. The canvas is absolutely positioned and sized to this box,
+		   so it cannot paint outside it anyway — the clip was buying nothing and
+		   costing the logo. Without it, content that does not fit scrolls, which
+		   is a failure anyone can recover from. */
 		min-height: 100vh;
 		min-height: 100dvh;
 		display: flex;
@@ -1339,6 +1355,39 @@
 		h1 .punch em,
 		.hint {
 			animation: none;
+		}
+	}
+
+	/* Phones. Georgia is wider than the serif we fall back to in development, so
+	   the headline wraps to three lines here and the hint to two — trim the type
+	   and the gaps so the block still clears the flight animation above it. */
+	@media (max-width: 480px) {
+		h1 {
+			font-size: 1.2rem;
+			line-height: 1.45;
+		}
+		.hint {
+			font-size: 0.8rem;
+			margin-bottom: 1.75rem;
+		}
+		.tagline {
+			margin-bottom: 1.25rem;
+		}
+		.countdown {
+			margin-bottom: 1.75rem;
+		}
+	}
+
+	/* Short viewports, phone or windowed desktop. */
+	@media (max-height: 720px) {
+		.tagline {
+			margin-bottom: 1rem;
+		}
+		.hint {
+			margin-bottom: 1.5rem;
+		}
+		.countdown {
+			margin-bottom: 1.5rem;
 		}
 	}
 
