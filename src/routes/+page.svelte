@@ -758,7 +758,12 @@
 		<section class="hero">
 			<canvas class="flight-canvas" bind:this={flightCanvas}></canvas>
 			<p class="tagline" bind:this={taglineEl}>Build your empire</p>
-			<h1>We don't sell dreams. We give you the tools to crush them.</h1>
+			<!-- Two spans, not a <br>: each sentence is its own line, and either one
+			     can still wrap on its own on a narrow phone rather than overflowing. -->
+			<h1>
+				<span>We don't sell dreams.</span>
+				<span>We give you the tools to crush them.</span>
+			</h1>
 
 			<div class="countdown">
 				<div class="countdown-segment"><span class="countdown-value">{days}</span><span class="countdown-label">Days</span></div>
@@ -996,6 +1001,10 @@
 		letter-spacing: 0.02em;
 		margin-bottom: 2.25rem;
 		padding: 0 0.25rem;
+	}
+
+	h1 span {
+		display: block;
 	}
 
 	/* ── Enter / confirmation section ── */
