@@ -1,14 +1,15 @@
 <script>
+	import Seo from '$lib/components/Seo.svelte';
+
 	const UPDATED = '22 August 2026';
 	const CONTACT = 'support@ammoura.me';
 </script>
 
-<svelte:head>
-	<title>Privacy Policy | Ammoura</title>
-	<meta name="description" content="How Ammoura collects, uses and protects information on the ammoura.me early-access site." />
-	<meta name="robots" content="index, follow" />
-	<link rel="canonical" href="https://ammoura.me/privacy" />
-</svelte:head>
+<Seo
+	title="Privacy Policy | Ammoura"
+	description="How Ammoura collects, uses and protects information on the ammoura.me early-access site."
+	path="/privacy"
+/>
 
 <h1>Privacy Policy</h1>
 <p class="updated">Last updated {UPDATED}</p>

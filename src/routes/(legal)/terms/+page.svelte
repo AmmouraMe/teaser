@@ -1,14 +1,15 @@
 <script>
+	import Seo from '$lib/components/Seo.svelte';
+
 	const UPDATED = '22 August 2026';
 	const CONTACT = 'support@ammoura.me';
 </script>
 
-<svelte:head>
-	<title>Terms of Service | Ammoura</title>
-	<meta name="description" content="The terms governing use of the ammoura.me early-access site." />
-	<meta name="robots" content="index, follow" />
-	<link rel="canonical" href="https://ammoura.me/terms" />
-</svelte:head>
+<Seo
+	title="Terms of Service | Ammoura"
+	description="The terms governing use of the ammoura.me early-access site."
+	path="/terms"
+/>
 
 <h1>Terms of Service</h1>
 <p class="updated">Last updated {UPDATED}</p>

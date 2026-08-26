@@ -2,6 +2,17 @@
 	import { enhance } from '$app/forms';
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
+	import Seo from '$lib/components/Seo.svelte';
+	import {
+		SITE_NAME,
+		SITE_URL,
+		SITE_DESCRIPTION,
+		PRODUCT_DESCRIPTION,
+		CAPABILITIES,
+		LAUNCH_ISO,
+		DISCORD_URL,
+		OG_IMAGE_PATH
+	} from '$lib/seo.js';
 
 	// Countdown target: September 11, 2026 at 20:07 EST (UTC-5)
 	const TARGET = new Date('2026-09-11T20:07:00-05:00').getTime();
@@ -372,13 +383,39 @@
 		return () => { if (frame) cancelAnimationFrame(frame); };
 	});
 
-	const siteName = 'Ammoura';
-	const siteTitle = 'Build Your Empire | Ammoura';
-	const siteDescription = "We don't sell dreams. We give you the tools to crush them. Join the waitlist and start building.";
-	const ogImagePath = '/og.png';
+	// Title leads with what this is rather than the slogan. "Build Your Empire"
+	// alone told a search result nothing, and the slogan already owns the page.
+	const siteTitle = 'Ammoura — Website and Online Store Builder';
 
-	let canonicalUrl = $derived($page.url.origin + $page.url.pathname);
-	let ogImageUrl = $derived($page.url.origin + ogImagePath);
+	// The launch is a real dated event and the page counts down to it, so it is
+	// worth describing to a crawler rather than leaving as decoration.
+	const launchSchema = [
+		{
+			'@type': 'Organization',
+			'@id': SITE_URL + '/#organization',
+			name: SITE_NAME,
+			url: SITE_URL + '/',
+			description: PRODUCT_DESCRIPTION,
+			logo: {
+				'@type': 'ImageObject',
+				url: SITE_URL + '/favicon.png'
+			},
+			sameAs: [DISCORD_URL]
+		},
+		{
+			'@type': 'SoftwareApplication',
+			'@id': SITE_URL + '/#software',
+			name: SITE_NAME,
+			applicationCategory: 'BusinessApplication',
+			operatingSystem: 'Web',
+			description: PRODUCT_DESCRIPTION,
+			url: SITE_URL + '/',
+			image: SITE_URL + OG_IMAGE_PATH,
+			featureList: CAPABILITIES,
+			publisher: { '@id': SITE_URL + '/#organization' },
+			datePublished: LAUNCH_ISO
+		}
+	];
 
 	/** @type {{ form: import('./$types').ActionData; data: import('./$types').PageData }} */
 	let { form, data } = $props();
@@ -687,71 +724,12 @@
 	);
 </script>
 
-<svelte:head>
-	<!-- Primary Meta Tags -->
-	<title>{siteTitle}</title>
-	<meta name="description" content={siteDescription} />
-	<meta name="author" content={siteName} />
-	<meta name="robots" content="index, follow" />
-	<link rel="canonical" href={canonicalUrl} />
-
-	<!-- Open Graph / Facebook -->
-	<meta property="og:type" content="website" />
-	<meta property="og:url" content={canonicalUrl} />
-	<meta property="og:title" content={siteTitle} />
-	<meta property="og:description" content={siteDescription} />
-	<meta property="og:image" content={ogImageUrl} />
-	<meta property="og:image:width" content="1200" />
-	<meta property="og:image:height" content="630" />
-	<meta property="og:image:alt" content="Ammoura — Build Your Empire" />
-	<meta property="og:site_name" content={siteName} />
-	<meta property="og:locale" content="en_US" />
-
-	<!-- Twitter Card -->
-	<meta name="twitter:card" content="summary_large_image" />
-	<meta name="twitter:url" content={canonicalUrl} />
-	<meta name="twitter:title" content={siteTitle} />
-	<meta name="twitter:description" content={siteDescription} />
-	<meta name="twitter:image" content={ogImageUrl} />
-	<meta name="twitter:image:alt" content="Ammoura — Build Your Empire" />
-
-	<!-- Structured Data (JSON-LD) -->
-	{@html `<script type="application/ld+json">${JSON.stringify({
-		"@context": "https://schema.org",
-		"@graph": [
-			{
-				"@type": "WebSite",
-				"@id": canonicalUrl + "#website",
-				"url": canonicalUrl,
-				"name": siteName,
-				"description": siteDescription,
-				"inLanguage": "en-US"
-			},
-			{
-				"@type": "WebPage",
-				"@id": canonicalUrl + "#webpage",
-				"url": canonicalUrl,
-				"name": siteTitle,
-				"description": siteDescription,
-				"isPartOf": { "@id": canonicalUrl + "#website" },
-				"inLanguage": "en-US"
-			},
-			{
-				"@type": "Organization",
-				"@id": canonicalUrl + "#organization",
-				"name": siteName,
-				"url": canonicalUrl,
-				"logo": {
-					"@type": "ImageObject",
-					"url": $page.url.origin + "/favicon.png"
-				},
-				"sameAs": [
-					"https://discord.gg/dPRvKFS9dq"
-				]
-			}
-		]
-	})}</script>`}
-</svelte:head>
+<Seo
+	title={siteTitle}
+	description={SITE_DESCRIPTION}
+	path="/"
+	schema={launchSchema}
+/>
 
 <main>
 	{#if !submitted}
@@ -839,6 +817,21 @@
 					{/each}
 				</div>
 			{/if}
+
+			<!-- What is actually coming, in the words people search for. This is
+			     real content rather than a hidden keyword list: a visitor learns
+			     what the product does, and a crawler gets terms it will weigh.
+			     A <ul> because it is a list, and the separators are decoration. -->
+			<ul class="capabilities" aria-label="What Ammoura will do">
+				{#each CAPABILITIES as capability, i (capability)}
+					<li>
+						{capability}{#if i < CAPABILITIES.length - 1}<span
+								class="cap-sep"
+								aria-hidden="true">·</span
+							>{/if}
+					</li>
+				{/each}
+			</ul>
 		</section>
 	{/if}
 
@@ -1360,6 +1353,86 @@
 		h1 .punch em,
 		.hint {
 			animation: none;
+		}
+	}
+
+	/* Capability row: same micro-caps register as .tagline and .countdown-label,
+	   sitting quietly at the bottom of the hero so it informs without competing
+	   with the headline. 0.42 white on black is 4.6:1 — AA at this size. */
+	.capabilities {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		align-items: center;
+		gap: 0.5rem;
+		list-style: none;
+		margin-top: 2.75rem;
+		max-width: 40rem;
+		font-size: 0.6rem;
+		letter-spacing: 0.18em;
+		text-transform: uppercase;
+		color: rgba(255, 255, 255, 0.42);
+	}
+
+	.capabilities li {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		white-space: nowrap;
+	}
+
+	.cap-sep {
+		color: rgba(255, 255, 255, 0.2);
+	}
+
+	@media (min-width: 640px) {
+		.capabilities {
+			font-size: 0.65rem;
+			gap: 0.65rem;
+			/* 46rem, not 40: the row needs ~709px to stay on one line at this
+			   size, and 640px left "Digital downloads" stranded underneath. */
+			max-width: 46rem;
+			margin-top: 3rem;
+		}
+		.capabilities li {
+			gap: 0.65rem;
+		}
+	}
+
+	/* Short viewports: the hero is min-height 100vh with overflow hidden, so
+	   anything past the fold is clipped rather than scrollable. It used to fit
+	   exactly; the capability row is what pushed it over on a windowed laptop.
+	   Trim the internal gaps instead of dropping content — tall screens keep
+	   the original rhythm. */
+	@media (max-height: 780px) {
+		.tagline {
+			margin-bottom: 1.25rem;
+		}
+		.hint {
+			margin-bottom: 1.5rem;
+		}
+		.countdown {
+			margin-bottom: 1.75rem;
+		}
+		.capabilities {
+			margin-top: 1.75rem;
+		}
+	}
+
+	/* Shorter still — a small phone in landscape, or a heavily windowed
+	   desktop. Same trade, taken further. */
+	@media (max-height: 680px) {
+		.tagline {
+			margin-bottom: 0.75rem;
+		}
+		.hint {
+			margin-bottom: 1rem;
+		}
+		.countdown {
+			margin-bottom: 1.25rem;
+		}
+		.capabilities {
+			margin-top: 1rem;
 		}
 	}
 

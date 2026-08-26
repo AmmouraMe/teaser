@@ -1,12 +1,21 @@
-/** @type {import('./$types').RequestHandler} */
-export function GET({ url }) {
-	const origin = url.origin;
-	const now = new Date().toISOString().split('T')[0];
+import { SITE_URL } from '$lib/seo.js';
 
+/** Both legal pages carry "Last updated 22 August 2026". */
+const LEGAL_UPDATED = '2026-08-22';
+
+/** @type {import('./$types').RequestHandler} */
+export function GET() {
+	// Absolute, from the production origin: a preview deployment must not list
+	// its own hostname in a sitemap that crawlers may reach.
+	const origin = SITE_URL;
+
+	// Real dates. Stamping lastmod with today on every request tells crawlers
+	// the whole site changes daily, which is both untrue and the kind of signal
+	// that gets a sitemap discounted.
 	const pages = [
-		{ loc: '/', priority: '1.0', changefreq: 'weekly' },
-		{ loc: '/privacy', priority: '0.3', changefreq: 'yearly' },
-		{ loc: '/terms', priority: '0.3', changefreq: 'yearly' }
+		{ loc: '/', priority: '1.0', changefreq: 'daily', lastmod: '2026-08-26' },
+		{ loc: '/privacy', priority: '0.3', changefreq: 'yearly', lastmod: LEGAL_UPDATED },
+		{ loc: '/terms', priority: '0.3', changefreq: 'yearly', lastmod: LEGAL_UPDATED }
 	];
 
 	const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -15,7 +24,7 @@ ${pages
 	.map(
 		(p) => `  <url>
     <loc>${origin}${p.loc}</loc>
-    <lastmod>${now}</lastmod>
+    <lastmod>${p.lastmod}</lastmod>
     <changefreq>${p.changefreq}</changefreq>
     <priority>${p.priority}</priority>
   </url>`
