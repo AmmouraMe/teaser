@@ -759,11 +759,13 @@
 			<canvas class="flight-canvas" bind:this={flightCanvas}></canvas>
 			<p class="tagline" bind:this={taglineEl}>Build your empire</p>
 			<!-- Two spans, not a <br>: each sentence is its own line, and either one
-			     can still wrap on its own on a narrow phone rather than overflowing. -->
+			     can still wrap on its own on a narrow phone rather than overflowing.
+			     The setup line sits back so the second one lands as the punch. -->
 			<h1>
-				<span>We don't sell dreams.</span>
-				<span>We give you the tools to crush them.</span>
+				<span class="setup">We don't sell dreams.</span>
+				<span class="punch">We give you the tools to <em>crush</em> them.</span>
 			</h1>
+			<p class="hint">A website, a storefront, and everything behind them.</p>
 
 			<div class="countdown">
 				<div class="countdown-segment"><span class="countdown-value">{days}</span><span class="countdown-label">Days</span></div>
@@ -999,12 +1001,85 @@
 		line-height: 1.5;
 		max-width: 700px;
 		letter-spacing: 0.02em;
-		margin-bottom: 2.25rem;
+		margin-bottom: 0.9rem;
 		padding: 0 0.25rem;
 	}
 
 	h1 span {
 		display: block;
+	}
+
+	/* Setup sits back, punch comes forward. Dimmed with colour rather than
+	   opacity so the reveal below can own opacity outright.
+	   rgba(255,255,255,0.55) on black is 6.2:1 — AA at this size. */
+	h1 .setup {
+		color: rgba(255, 255, 255, 0.55);
+	}
+
+	h1 .punch {
+		color: #fff;
+	}
+
+	/* The one word the sentence is built around. Georgia's italic earns its
+	   keep here; the glow is set on the base rule so it survives
+	   prefers-reduced-motion, and `ignite` only animates up to it. */
+	h1 .punch em {
+		font-style: italic;
+		text-shadow: 0 0 38px rgba(255, 255, 255, 0.28);
+	}
+
+	/* Says what this actually is, quietly. 0.5 white on black is 5.3:1. */
+	.hint {
+		font-size: 0.85rem;
+		line-height: 1.6;
+		letter-spacing: 0.04em;
+		color: rgba(255, 255, 255, 0.5);
+		max-width: 30em;
+		margin-top: 0.35rem;
+		margin-bottom: 2.25rem;
+		padding: 0 0.25rem;
+	}
+
+	/* Staged reveal: setup, punch, then the hint. The page's other motion is
+	   canvas-driven, so this is the only CSS animation here — kept to one
+	   keyframe and a delay per line. */
+	@keyframes rise {
+		from {
+			opacity: 0;
+			transform: translateY(0.4em);
+		}
+		to {
+			opacity: 1;
+			transform: none;
+		}
+	}
+
+	@keyframes ignite {
+		from {
+			text-shadow: 0 0 0 rgba(255, 255, 255, 0);
+		}
+	}
+
+	h1 .setup,
+	h1 .punch,
+	.hint {
+		animation: rise 900ms cubic-bezier(0.2, 0.65, 0.3, 1) both;
+	}
+
+	h1 .setup {
+		animation-delay: 120ms;
+	}
+
+	h1 .punch {
+		animation-delay: 420ms;
+	}
+
+	h1 .punch em {
+		animation: ignite 1200ms ease-out 900ms both;
+	}
+
+	.hint {
+		animation-delay: 780ms;
 	}
 
 	/* ── Enter / confirmation section ── */
@@ -1277,6 +1352,15 @@
 		.play-btn {
 			transition: none;
 		}
+
+		/* Final state only — the glow lives on the base rule, so removing the
+		   animations leaves the headline fully styled, just not staged. */
+		h1 .setup,
+		h1 .punch,
+		h1 .punch em,
+		.hint {
+			animation: none;
+		}
 	}
 
 	/* ── Confirmation / Discord ── */
@@ -1353,6 +1437,13 @@
 		h1 {
 			font-size: clamp(1.5rem, 3.5vw, 2.5rem);
 			line-height: 1.4;
+			margin-bottom: 1.1rem;
+			padding: 0;
+		}
+
+		.hint {
+			font-size: 1rem;
+			margin-top: 0.6rem;
 			margin-bottom: 3rem;
 			padding: 0;
 		}
