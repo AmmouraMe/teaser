@@ -256,6 +256,21 @@
 			// Plane scale: responsive
 			const planeSize = w < 480 ? Math.min(w, h) * 0.045 : Math.min(w, h) * 0.04;
 
+			// Audio, once per frame, before anything that reacts to it is drawn.
+			// The 9 swings perpendicular to its own track and the arc becomes a
+			// spectrum; both read the same sample, so they stay in step.
+			const nowMs = Date.now();
+			const dt = lastFrameAt ? Math.min(0.05, (nowMs - lastFrameAt) / 1000) : 0.016;
+			lastFrameAt = nowMs;
+			const target = playing ? readLevel() : 0;
+			level += (target - level) * (target > level ? DANCE_ATTACK : DANCE_RELEASE);
+			dancePhase += dt * DANCE_SPEED;
+
+			// readLevel() has just refreshed freqData, so the bars are free.
+			updateEqBars(playing);
+			const eqTarget = playing ? 1 : 0;
+			eqMix += (eqTarget - eqMix) * (eqTarget > eqMix ? EQ_FADE_IN : EQ_FADE_OUT);
+
 			// Past path (dotted)
 			ctx.save();
 			ctx.strokeStyle = 'rgba(255,255,255,0.18)';
@@ -289,6 +304,36 @@
 			ctx.stroke();
 			ctx.restore();
 
+			// Equaliser. Ticks perpendicular to the arc, mirrored either side of it,
+			// so the line itself looks like it is opening and closing rather than
+			// having bars stuck to it. Faint, and it fades out with eqMix when the
+			// track stops rather than vanishing on the pause frame.
+			if (eqMix > 0.003) {
+				ctx.save();
+				ctx.lineCap = 'round';
+				ctx.lineWidth = w < 480 ? 0.9 : 1.1;
+				const maxHalf = Math.min(Math.min(w, h) * EQ_MAX, EQ_MAX_PX);
+				for (let i = 0; i < EQ_BARS; i++) {
+					const s = (i + 0.5) / EQ_BARS;
+					const bp = bz(s, P0, P1, P2);
+					const bd = bzd(s, P0, P1, P2);
+					const bl = Math.hypot(bd[0], bd[1]) || 1;
+					// Normal to the arc at this point.
+					const enx = -bd[1] / bl;
+					const eny = bd[0] / bl;
+					const amp = eqBars[i] * eqMix;
+					const half = amp * maxHalf;
+					// Below about a third of a pixel it is just noise on the line.
+					if (half < 0.35) continue;
+					ctx.strokeStyle = `rgba(255,255,255,${0.1 + 0.26 * amp})`;
+					ctx.beginPath();
+					ctx.moveTo(bp[0] - enx * half, bp[1] - eny * half);
+					ctx.lineTo(bp[0] + enx * half, bp[1] + eny * half);
+					ctx.stroke();
+				}
+				ctx.restore();
+			}
+
 			// Endpoint marker
 			const pEnd = bz(1, P0, P1, P2);
 			ctx.beginPath();
@@ -312,16 +357,6 @@
 			const tan = bzd(t, P0, P1, P2);
 			const tangentAngle = Math.atan2(tan[1], tan[0]);
 			const bob = Math.sin(Date.now() * 0.0015) * 0.04;
-
-			// Dance: the 9 swings perpendicular to its own track, driven by the
-			// music. Tuned short and twitchy — a small swing that reacts on the
-			// transient rather than riding a smoothed average.
-			const nowMs = Date.now();
-			const dt = lastFrameAt ? Math.min(0.05, (nowMs - lastFrameAt) / 1000) : 0.016;
-			lastFrameAt = nowMs;
-			const target = playing ? readLevel() : 0;
-			level += (target - level) * (target > level ? DANCE_ATTACK : DANCE_RELEASE);
-			dancePhase += dt * DANCE_SPEED;
 
 			const tlen = Math.hypot(tan[0], tan[1]) || 1;
 			// Left-hand normal to the tangent — "up and down" relative to the arc.
@@ -445,10 +480,26 @@
 	const DANCE_ATTACK = 0.8; // how fast the swing grows on a hit (0..1 per frame)
 	const DANCE_RELEASE = 0.28; // how fast it settles again
 
+	// Equaliser feel. The trail the 9 leaves is a line; while the track plays it
+	// becomes a spectrum. Deliberately small and faint — it should read as the
+	// line breathing, not a visualiser bolted onto the page.
+	const EQ_BARS = 56; // ticks along the arc
+	// Tick half-length: a fraction of the smaller edge, then capped. Uncapped at
+	// 0.03 it was ~30px a side on a tall window — a visualiser, not a line that
+	// breathes. The cap keeps it the same restrained size on any display.
+	const EQ_MAX = 0.014;
+	const EQ_MAX_PX = 13;
+	const EQ_ATTACK = 0.45; // per-frame rise toward a new magnitude
+	const EQ_RELEASE = 0.13; // and the fall, slower so it settles rather than flickers
+	const EQ_FADE_IN = 0.05; // how fast the whole effect appears on play
+	const EQ_FADE_OUT = 0.03; // and clears on pause
+
 	let audioCtx = null;
 	let analyser = null;
 	let freqData = null;
 	let level = 0; // smoothed 0..1
+	let eqMix = 0; // 0 silent, 1 playing — smoothed, so it fades rather than snaps
+	const eqBars = new Float32Array(EQ_BARS);
 	let dancePhase = 0;
 	let lastFrameAt = 0;
 
@@ -493,6 +544,33 @@
 		const bins = Math.min(16, freqData.length);
 		for (let i = 0; i < bins; i++) sum += freqData[i];
 		return sum / (bins * 255);
+	}
+
+	/**
+	 * Fold the analyser's bins down to EQ_BARS magnitudes.
+	 *
+	 * Reads whatever readLevel() last pulled, so the spectrum costs no extra
+	 * getByteFrequencyData call. When nothing is playing the bars decay to zero
+	 * instead of freezing mid-shape.
+	 */
+	function updateEqBars(active) {
+		if (!active || !freqData) {
+			for (let i = 0; i < EQ_BARS; i++) eqBars[i] *= 1 - EQ_RELEASE;
+			return;
+		}
+		// Skip bin 0 (DC), and stop before the top of the range, which is empty
+		// on this mix and would leave a third of the arc permanently flat.
+		const lo = 1;
+		const hi = Math.floor(freqData.length * 0.7);
+		for (let i = 0; i < EQ_BARS; i++) {
+			const f = i / (EQ_BARS - 1);
+			// Weighted toward the low end, where the music actually is.
+			const bin = Math.min(freqData.length - 1, Math.round(lo + Math.pow(f, 1.7) * (hi - lo)));
+			const v = freqData[bin] / 255;
+			// Squared: quiet bins stay quiet and the peaks still carry.
+			const target = v * v;
+			eqBars[i] += (target - eqBars[i]) * (target > eqBars[i] ? EQ_ATTACK : EQ_RELEASE);
+		}
 	}
 
 	function togglePlay() {
