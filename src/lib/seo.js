@@ -33,9 +33,11 @@ export const PRODUCT_DESCRIPTION =
 /**
  * What the page is actually about.
  *
- * `<meta name="keywords">` is ignored by every major search engine — Google
- * dropped it in 2009 — so this list earns its place by also driving the
- * visible capability row in the hero, which is content a crawler does weigh.
+ * Emitted as `<meta name="keywords">`, which is ignored by every major search
+ * engine — Google dropped it in 2009. It costs nothing and a few smaller
+ * engines still parse it, but nothing here should be expected to move a
+ * ranking. The terms that count are the ones in SITE_DESCRIPTION, the page
+ * title, and the JSON-LD below.
  */
 export const KEYWORDS = [
 	'website builder',
@@ -50,7 +52,13 @@ export const KEYWORDS = [
 	'small business website'
 ];
 
-/** The visible capability row. Kept short — it is a hero element, not a footer dump. */
+/**
+ * What Ammoura does, as a plain list.
+ *
+ * These were briefly a visible row in the hero; it crowded the legal links and
+ * came out again. They still describe the product to a crawler through
+ * `featureList` on the SoftwareApplication node.
+ */
 export const CAPABILITIES = [
 	'Online store',
 	'Website builder',

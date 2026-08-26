@@ -818,20 +818,6 @@
 				</div>
 			{/if}
 
-			<!-- What is actually coming, in the words people search for. This is
-			     real content rather than a hidden keyword list: a visitor learns
-			     what the product does, and a crawler gets terms it will weigh.
-			     A <ul> because it is a list, and the separators are decoration. -->
-			<ul class="capabilities" aria-label="What Ammoura will do">
-				{#each CAPABILITIES as capability, i (capability)}
-					<li>
-						{capability}{#if i < CAPABILITIES.length - 1}<span
-								class="cap-sep"
-								aria-hidden="true">·</span
-							>{/if}
-					</li>
-				{/each}
-			</ul>
 		</section>
 	{/if}
 
@@ -1353,86 +1339,6 @@
 		h1 .punch em,
 		.hint {
 			animation: none;
-		}
-	}
-
-	/* Capability row: same micro-caps register as .tagline and .countdown-label,
-	   sitting quietly at the bottom of the hero so it informs without competing
-	   with the headline. 0.42 white on black is 4.6:1 — AA at this size. */
-	.capabilities {
-		display: flex;
-		flex-wrap: wrap;
-		justify-content: center;
-		align-items: center;
-		gap: 0.5rem;
-		list-style: none;
-		margin-top: 2.75rem;
-		max-width: 40rem;
-		font-size: 0.6rem;
-		letter-spacing: 0.18em;
-		text-transform: uppercase;
-		color: rgba(255, 255, 255, 0.42);
-	}
-
-	.capabilities li {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		white-space: nowrap;
-	}
-
-	.cap-sep {
-		color: rgba(255, 255, 255, 0.2);
-	}
-
-	@media (min-width: 640px) {
-		.capabilities {
-			font-size: 0.65rem;
-			gap: 0.65rem;
-			/* 46rem, not 40: the row needs ~709px to stay on one line at this
-			   size, and 640px left "Digital downloads" stranded underneath. */
-			max-width: 46rem;
-			margin-top: 3rem;
-		}
-		.capabilities li {
-			gap: 0.65rem;
-		}
-	}
-
-	/* Short viewports: the hero is min-height 100vh with overflow hidden, so
-	   anything past the fold is clipped rather than scrollable. It used to fit
-	   exactly; the capability row is what pushed it over on a windowed laptop.
-	   Trim the internal gaps instead of dropping content — tall screens keep
-	   the original rhythm. */
-	@media (max-height: 780px) {
-		.tagline {
-			margin-bottom: 1.25rem;
-		}
-		.hint {
-			margin-bottom: 1.5rem;
-		}
-		.countdown {
-			margin-bottom: 1.75rem;
-		}
-		.capabilities {
-			margin-top: 1.75rem;
-		}
-	}
-
-	/* Shorter still — a small phone in landscape, or a heavily windowed
-	   desktop. Same trade, taken further. */
-	@media (max-height: 680px) {
-		.tagline {
-			margin-bottom: 0.75rem;
-		}
-		.hint {
-			margin-bottom: 1rem;
-		}
-		.countdown {
-			margin-bottom: 1.25rem;
-		}
-		.capabilities {
-			margin-top: 1rem;
 		}
 	}
 
