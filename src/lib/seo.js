@@ -10,8 +10,16 @@
 export const SITE_NAME = 'Ammoura';
 export const SITE_URL = 'https://ammoura.me';
 
-/** Public launch: 11 September 2026, 20:07 EST. Same moment the page counts down to. */
-export const LAUNCH_ISO = '2026-09-11T20:07:00-05:00';
+/**
+ * Public launch: 9 November 2026, 20:07 EST. The moment the page counts down
+ * to and the date a crawler is told the software was published, so it is
+ * declared once here and imported everywhere else.
+ *
+ * The offset is EST for real on this date — US daylight time ends 1 November
+ * 2026 — so -05:00 and the 20:07 wall clock now agree. They did not on the
+ * previous September date, which sat in EDT and therefore fired an hour late.
+ */
+export const LAUNCH_ISO = '2026-11-09T20:07:00-05:00';
 
 export const DISCORD_URL = 'https://discord.gg/dPRvKFS9dq';
 

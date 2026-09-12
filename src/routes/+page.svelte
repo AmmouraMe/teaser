@@ -14,8 +14,10 @@
 		OG_IMAGE_PATH
 	} from '$lib/seo.js';
 
-	// Countdown target: September 11, 2026 at 20:07 EST (UTC-5)
-	const TARGET = new Date('2026-09-11T20:07:00-05:00').getTime();
+	// The countdown target is LAUNCH_ISO itself. It used to be a second copy of
+	// the same instant written out here, which is one edit away from a page that
+	// counts down to one date and tells crawlers another.
+	const TARGET = new Date(LAUNCH_ISO).getTime();
 	let days = $state('--');
 	let hours = $state('--');
 	let minutes = $state('--');
@@ -62,7 +64,7 @@
 				return Math.max(0, Math.min(1, audioEl.currentTime / d));
 			}
 		}
-		// Otherwise the arc is the real countdown: March 22 → September 11.
+		// Otherwise the arc is the real countdown: March 22 → launch.
 		return Math.max(0, Math.min(1, (Date.now() - FLIGHT_START) / (TARGET - FLIGHT_START)));
 	}
 
