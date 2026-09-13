@@ -74,18 +74,23 @@ const launchLabel = new Intl.DateTimeFormat('en-GB', {
 
 // The three pieces of the hero's drawing code, taken verbatim.
 const glyphSrc = slice(page, '// 3D wireframe "21"', '// 3D math helpers');
-const domeConstSrc = slice(page, 'const OCEAN_FAR', '// Tower and dome dimensions');
+// The globe's own constants. Starts at the tilt because the palettes moved out
+// to component scope when the light theme arrived — they come in separately,
+// below, since the rig needs them too.
+const domeConstSrc = slice(page, 'const DOME_TILT = 0.32;', '// Tower and dome dimensions');
 const domeDrawSrc = slice(
 	page,
 	'const domeCX = towerBaseX;',
-	'// Two tall wireframe rectangles standing on the apex.'
+	'// What stands on the apex.'
 );
 // The lighting rig's fixtures — where each beam idles, how wide its cone is.
 // Only the geometry is lifted; the card paints its own beams as SVG, the same
 // way it paints the planet's recorded strokes.
 const rigSrc = slice(page, '// A fixture: where it idles', '// Gradients are built once per colour');
-// The desk's own constants — the palette and how many beams are hung.
+// The desk's own constants — how many beams are hung, and how hard.
 const rigConstSrc = slice(page, '// ── The rig ──', '\tlet audioCtx = null;');
+// Both palettes, and the picker between them.
+const palSrc = slice(page, '// ── Palettes ──', '\t// ── The rig ──');
 
 // Composition, following the hero: the towers stand near the top, the planet
 // hangs from them across the whole frame, and the words read over it the way a
@@ -107,7 +112,12 @@ const harness = `
 // page, so it is the one constant restated here.
 ${glyphSrc}
 
-const DOME_TILT = 0.32;
+// The card is the dark theme. The light one is a thing a visitor switches on;
+// a share card is what the link looks like before anybody has switched anything.
+const theme = 'dark';
+const isLight = () => false;
+${palSrc}
+const P = pal();
 
 // getPuffSprite() builds its sprite on a canvas. Nothing here paints, so the
 // sprite is never read — it only has to exist for drawImage to be handed
@@ -205,7 +215,7 @@ const glyph = V3.map(([mx, my, mz]) => {
   return [${GLYPH_AT[0]} + x1 * ${GLYPH_SIZE}, ${GLYPH_AT[1]} - y2 * ${GLYPH_SIZE}];
 });
 
-module.exports = { ops, glyph, edges: E3, rigs: RIGS, colours: RIG_COLOURS, rigColour };
+module.exports = { ops, glyph, edges: E3, rigs: RIGS, colours: pal().rig, rigColour };
 `;
 
 const scratch = mkdtempSync(join(tmpdir(), 'ammoura-og-'));

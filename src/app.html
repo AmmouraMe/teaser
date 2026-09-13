@@ -12,13 +12,42 @@
 		     the <title> and picks whichever icon it can find. Generated together
 		     with the icons by scripts/build-icons.mjs. -->
 		<link rel="manifest" href="/site.webmanifest" />
+		<!-- The stored theme, applied before the first paint. Reading it in the
+		     component instead means the page renders dark and then flips, which is
+		     a flash of the wrong site on every reload for anyone who chose light.
+		     Deliberately not prefers-color-scheme: the light theme is a choice a
+		     visitor makes, not one their laptop makes for them. -->
+		<script>
+			try {
+				var t = localStorage.getItem('ammoura-theme');
+				if (t === 'light' || t === 'dark') {
+					document.documentElement.dataset.theme = t;
+					// Set here as well as in the page: left saying "dark" the browser
+					// paints dark form controls and a dark UI tint over a pastel
+					// page. Both tags are above this script, so they are already in
+					// the DOM to be edited.
+					var cs = document.querySelector('meta[name="color-scheme"]');
+					if (cs) cs.content = t;
+					var tc = document.querySelector('meta[name="theme-color"]');
+					if (tc) tc.content = t === 'light' ? '#fff7fb' : '#000000';
+				}
+			} catch (e) {
+				/* private window, or storage refused — the default theme stands */
+			}
+		</script>
 		<style>
 			/* Autofill override — must live outside Svelte scoping to beat UA !important on iOS Chrome */
+			/* Themed like everything else: a light-theme email field that autofills
+			   to a black box is worse than no override at all. The custom
+			   properties come from the page; the fallbacks are the dark values, so
+			   this still works if it somehow runs before they are set. */
+			:root { --autofill-bg: #000; --autofill-fg: #fff; }
+			:root[data-theme='light'] { --autofill-bg: #fff; --autofill-fg: #3a1e42; }
 			@keyframes autofill-override {
 				0%, 100% {
-					background-color: #000 !important;
-					color: #fff !important;
-					-webkit-text-fill-color: #fff !important;
+					background-color: var(--autofill-bg) !important;
+					color: var(--autofill-fg) !important;
+					-webkit-text-fill-color: var(--autofill-fg) !important;
 				}
 			}
 			input:-webkit-autofill,
@@ -33,13 +62,13 @@
 			select:-webkit-autofill:hover,
 			select:-webkit-autofill:focus,
 			select:-webkit-autofill:active {
-				-webkit-text-fill-color: #fff !important;
-				-webkit-box-shadow: 0 0 0px 9999px #000 inset !important;
-				box-shadow: 0 0 0px 9999px #000 inset !important;
-				background-color: #000 !important;
-				background: #000 !important;
-				color: #fff !important;
-				caret-color: #fff !important;
+				-webkit-text-fill-color: var(--autofill-fg) !important;
+				-webkit-box-shadow: 0 0 0px 9999px var(--autofill-bg) inset !important;
+				box-shadow: 0 0 0px 9999px var(--autofill-bg) inset !important;
+				background-color: var(--autofill-bg) !important;
+				background: var(--autofill-bg) !important;
+				color: var(--autofill-fg) !important;
+				caret-color: var(--autofill-fg) !important;
 				-webkit-appearance: none !important;
 				appearance: none !important;
 				animation: autofill-override 0.01s infinite both !important;
@@ -49,13 +78,13 @@
 			}
 			input:-internal-autofill-selected,
 			textarea:-internal-autofill-selected {
-				-webkit-text-fill-color: #fff !important;
-				-webkit-box-shadow: 0 0 0px 9999px #000 inset !important;
-				box-shadow: 0 0 0px 9999px #000 inset !important;
-				background-color: #000 !important;
-				background: #000 !important;
-				color: #fff !important;
-				caret-color: #fff !important;
+				-webkit-text-fill-color: var(--autofill-fg) !important;
+				-webkit-box-shadow: 0 0 0px 9999px var(--autofill-bg) inset !important;
+				box-shadow: 0 0 0px 9999px var(--autofill-bg) inset !important;
+				background-color: var(--autofill-bg) !important;
+				background: var(--autofill-bg) !important;
+				color: var(--autofill-fg) !important;
+				caret-color: var(--autofill-fg) !important;
 				-webkit-appearance: none !important;
 				appearance: none !important;
 				animation: autofill-override 0.01s infinite both !important;

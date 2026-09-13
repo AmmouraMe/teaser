@@ -162,7 +162,7 @@
 		 * local tangent. Rings are stitched to their predecessor; an open path is
 		 * simply left open at both ends.
 		 */
-		function sweep(path, dz) {
+		function sweep(path, dz, V3, E3, r = tubR) {
 			let firstRing = -1;
 			let prevRing = -1;
 			for (let i = 0; i < path.length; i++) {
@@ -181,9 +181,9 @@
 				for (let j = 0; j < minSegs; j++) {
 					const c = (j / minSegs) * TWO_PI;
 					V3.push([
-						tubR * Math.cos(c),
-						path[i][1] + tubR * Math.sin(c) * ny,
-						path[i][0] + dz + tubR * Math.sin(c) * nz,
+						r * Math.cos(c),
+						path[i][1] + r * Math.sin(c) * ny,
+						path[i][0] + dz + r * Math.sin(c) * nz,
 					]);
 					E3.push([baseIdx + j, baseIdx + (j + 1) % minSegs]);
 				}
@@ -206,11 +206,62 @@
 			let cursor = -totalW / 2;
 			for (const d of DIGITS) {
 				const centerZ = cursor + d.halfW;
-				for (const stroke of d.strokes) sweep(resample(stroke), centerZ);
+				for (const stroke of d.strokes) sweep(resample(stroke), centerZ, V3, E3);
 				cursor += d.halfW * 2 + DIGIT_GAP;
 			}
 
 			for (const v of V3) { v[0] *= GLYPH_SCALE; v[1] *= GLYPH_SCALE; v[2] *= GLYPH_SCALE; }
+		}
+
+		// The unicorn — what flies the arc in the light theme, where the launch
+		// date flies it in the dark one.
+		//
+		// It is described exactly the way the digits are: centreline strokes in
+		// the same zy plane, through the same tube sweep. That is the whole reason
+		// the "21" was rebuilt as paths rather than hand-assembled solids — a
+		// sign-writer's description of a shape does not care whether the shape is
+		// a numeral. Facing +z, which the view yaw turns into screen-right, so the
+		// unicorn faces along its own direction of travel down the arc.
+		const UNICORN_V3 = [];
+		const UNICORN_E3 = [];
+		const UNICORN_SCALE = 0.72;
+		// A finer tube than the digits get. The unicorn's features — a horn, an
+		// ear, four legs — are small next to a numeral's strokes, and at the
+		// digits' thickness they close up into a blob.
+		const UNICORN_TUB = tubR * 0.55;
+		{
+			// Barrel, as a closed loop. A tube swept round a closed centreline is
+			// an outline, not a solid — which is the same way the digits read.
+			const body = [
+				[-0.42, 0.08], [-0.33, 0.28], [-0.10, 0.36], [0.16, 0.34], [0.30, 0.24],
+				[0.36, 0.06], [0.30, -0.12], [0.08, -0.20], [-0.20, -0.19], [-0.38, -0.08],
+				[-0.42, 0.08],
+			];
+			// Neck, head and jaw as one closed outline, run up off the shoulder.
+			const head = [
+				[0.20, 0.30], [0.38, 0.52], [0.48, 0.68], [0.62, 0.74], [0.78, 0.66],
+				[0.86, 0.54], [0.80, 0.46], [0.64, 0.46], [0.52, 0.52], [0.40, 0.40],
+				[0.26, 0.26],
+			];
+			// The horn. The one stroke that settles what animal this is.
+			const horn = [[0.63, 0.76], [0.70, 0.92], [0.75, 1.06]];
+			const ear = [[0.50, 0.72], [0.52, 0.88], [0.61, 0.77]];
+			// Mane, down the back of the neck, and a tail with some flick in it.
+			const mane = [[0.47, 0.86], [0.40, 0.66], [0.31, 0.50], [0.20, 0.38], [0.08, 0.33]];
+			const tail = [[-0.41, 0.20], [-0.58, 0.16], [-0.70, -0.02], [-0.66, -0.24], [-0.54, -0.34]];
+			// Four legs, mid-canter: the near pair reaching, the far pair trailing.
+			const legs = [
+				[[0.22, -0.16], [0.30, -0.38], [0.26, BASE_Y]],
+				[[0.06, -0.20], [0.09, -0.42], [0.03, BASE_Y]],
+				[[-0.20, -0.19], [-0.29, -0.40], [-0.23, BASE_Y]],
+				[[-0.33, -0.14], [-0.42, -0.37], [-0.38, BASE_Y]],
+			];
+			for (const stroke of [body, head, horn, ear, mane, tail, ...legs]) {
+				sweep(resample(stroke), 0, UNICORN_V3, UNICORN_E3, UNICORN_TUB);
+			}
+			for (const v of UNICORN_V3) {
+				v[0] *= UNICORN_SCALE; v[1] *= UNICORN_SCALE; v[2] *= UNICORN_SCALE;
+			}
 		}
 
 		// 3D math helpers
@@ -261,13 +312,6 @@
 		// than one colour. The far side of the sphere sits at the dark end and
 		// the near side at the bright end, so the body has real colour range
 		// across its own width instead of one flat tint fading out.
-		const OCEAN_FAR = [34, 62, 132];
-		const OCEAN_NEAR = [96, 184, 250];
-		const LAND_FAR = [44, 110, 76];
-		const LAND_NEAR = [132, 226, 136];
-		// The lit limb. Brighter than either, and it does not fade, so the globe
-		// keeps a hard edge against the background.
-		const ATMO_RGB = '128,206,255';
 
 		// One revolution, in milliseconds. Slow on purpose: the countdown is what
 		// the eye is meant to land on, and a fast globe steals it.
@@ -320,8 +364,6 @@
 		// Cloud tops sit just off the surface. Enough to read as a layer at the
 		// limb, not enough to float.
 		const CLOUD_ALT = 1.015;
-		// The lit meridian colour the spectrum drives the wireframe toward.
-		const BEAT_NEAR = [186, 244, 255];
 
 		/** Small deterministic PRNG, so the sky is the same sky on every load. */
 		function mulberry32(a) {
@@ -443,9 +485,13 @@
 		// quality guard below does.
 		const beamGradCache = new Map();
 		function beamGrads(ci) {
-			let g = beamGradCache.get(ci);
+			// Keyed by theme as well as index: the two palettes put different
+			// colours at the same slot, so an index alone would serve bubblegum
+			// out of the dark theme's cache.
+			const key = `${theme}:${ci}`;
+			let g = beamGradCache.get(key);
 			if (g) return g;
-			const c = RIG_COLOURS[ci];
+			const c = pal().rig[ci];
 			const rgb = `${c[0]},${c[1]},${c[2]}`;
 			const cone = ctx.createLinearGradient(0, 0, 1, 0);
 			cone.addColorStop(0, `rgba(${rgb},1)`);
@@ -460,7 +506,7 @@
 			haze.addColorStop(0.5, `rgba(${rgb},0.34)`);
 			haze.addColorStop(1, `rgba(${rgb},0)`);
 			g = { cone, core, haze };
-			beamGradCache.set(ci, g);
+			beamGradCache.set(key, g);
 			return g;
 		}
 
@@ -486,7 +532,7 @@
 			const hung = Math.max(2, Math.round(beams.length * rigQuality));
 
 			ctx.save();
-			ctx.globalCompositeOperation = 'lighter';
+			ctx.globalCompositeOperation = pal().blend;
 			ctx.lineCap = 'round';
 
 			// Haze in the colour of the moment. This is what stops the beams reading
@@ -508,7 +554,7 @@
 
 			for (let i = 0; i < hung; i++) {
 				const b = beams[i];
-				const g = beamGrads(i % 2 ? (rigColour + 2) % RIG_COLOURS.length : rigColour);
+				const g = beamGrads(i % 2 ? (rigColour + 2) % pal().rig.length : rigColour);
 				// Idle sweep, plus a throw on the kick that moves the whole truss to a
 				// new spread at once. rigSnap decays, so the beams ease back into their
 				// sweep rather than staying thrown.
@@ -544,6 +590,97 @@
 				ctx.stroke();
 				ctx.restore();
 			}
+			ctx.restore();
+		}
+
+		/**
+		 * The candy mountain: what the towers become in the light theme.
+		 *
+		 * It stands on the same point of the planet the towers stand on, which is
+		 * the apex, and its height is clamped the same way theirs is — the apex
+		 * tracks the tagline, and on a short window that sits close to the top of
+		 * the canvas, so an unclamped peak simply leaves the frame.
+		 *
+		 * Striped by clipping to the silhouette and running bands across it. A
+		 * candy stripe is a helix in life and a set of parallel diagonals in any
+		 * drawing of one, so parallel diagonals is what this does.
+		 */
+		function drawCandyMountain(w, bx, by, towerW, towerH, towerGap) {
+			const height = Math.max(towerH * 0.7, Math.min(towerH * 1.7, by - 14));
+			const halfBase = height * 0.92;
+			const peakY = by - height;
+			// A shoulder on one side, so it is a mountain and not a traffic cone.
+			const outline = [
+				[bx - halfBase, by],
+				[bx - halfBase * 0.46, by - height * 0.46],
+				[bx - halfBase * 0.26, by - height * 0.37],
+				[bx, peakY],
+				[bx + halfBase * 0.38, by - height * 0.33],
+				[bx + halfBase, by],
+			];
+			const trace = () => {
+				ctx.beginPath();
+				ctx.moveTo(outline[0][0], outline[0][1]);
+				for (let i = 1; i < outline.length; i++) ctx.lineTo(outline[i][0], outline[i][1]);
+				ctx.closePath();
+			};
+
+			ctx.save();
+			trace();
+			// Strawberry body, so the white bands read as stripes rather than as
+			// gaps in nothing.
+			ctx.fillStyle = 'rgba(255,170,203,0.95)';
+			ctx.fill();
+
+			ctx.save();
+			ctx.clip();
+			// The stripes, spaced off the mountain's own size so they hold the
+			// same rhythm on a phone as on a desktop.
+			const band = halfBase * 0.34;
+			ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+			ctx.lineWidth = band * 0.52;
+			ctx.beginPath();
+			for (let k = -4; k < 12; k++) {
+				const x0 = bx - halfBase * 2 + k * band;
+				ctx.moveTo(x0, by + 4);
+				ctx.lineTo(x0 + height * 0.95, peakY - 4);
+			}
+			ctx.stroke();
+
+			// Icing over the top, inside the same clip — which is what keeps it on
+			// the mountain instead of hanging in the sky, and lets the drips be a
+			// plain wave rather than a shape fitted to the slopes.
+			const icingY = peakY + height * 0.3;
+			ctx.beginPath();
+			ctx.moveTo(bx - halfBase, peakY - height * 0.1);
+			ctx.lineTo(bx + halfBase, peakY - height * 0.1);
+			ctx.lineTo(bx + halfBase, icingY);
+			const dips = 5;
+			for (let k = dips; k >= 0; k--) {
+				const x0 = bx - halfBase + (k / dips) * halfBase * 2;
+				const xm = x0 - (halfBase / dips);
+				ctx.quadraticCurveTo(xm, icingY + height * 0.16, xm - halfBase / dips, icingY);
+			}
+			ctx.closePath();
+			ctx.fillStyle = 'rgba(255,255,255,0.97)';
+			ctx.fill();
+			ctx.restore();
+
+			// Edge, over the stripes, so the silhouette stays crisp. The outline
+			// has to be laid down again: restore() puts back the clip and the
+			// styles, but the current path is not part of that state, and without
+			// this the edge pass strokes the stripes across the open sky.
+			trace();
+			ctx.strokeStyle = 'rgba(214,86,144,0.9)';
+			ctx.lineWidth = w < 480 ? 1.1 : 1.6;
+			ctx.stroke();
+
+			// And a cherry, because a candy mountain without one is just a hill.
+			const cherryR = Math.max(2.5, height * 0.075);
+			ctx.beginPath();
+			ctx.arc(bx, peakY - cherryR * 0.8, cherryR, 0, TWO_PI);
+			ctx.fillStyle = 'rgba(226,48,88,0.96)';
+			ctx.fill();
 			ctx.restore();
 		}
 
@@ -605,6 +742,9 @@
 			};
 		}
 
+		/** The theme's ink at an alpha — every white the draw loop used to hardcode. */
+		const inkA = (a) => `rgba(${pal().ink.join(',')},${Math.min(1, a * pal().lineBoost)})`;
+
 		let frame;
 		function draw() {
 			const dpr = devicePixelRatio || 1;
@@ -655,7 +795,7 @@
 
 			// Past path (dotted)
 			ctx.save();
-			ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+			ctx.strokeStyle = inkA(0.18);
 			ctx.setLineDash([3, 7]);
 			ctx.lineWidth = w < 480 ? 0.8 : 1;
 			ctx.beginPath();
@@ -673,7 +813,7 @@
 
 			// Future path (solid)
 			ctx.save();
-			ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+			ctx.strokeStyle = inkA(0.3);
 			ctx.lineWidth = w < 480 ? 0.8 : 1;
 			ctx.beginPath();
 			ctx.moveTo(pAt[0], pAt[1]);
@@ -707,7 +847,7 @@
 					const half = amp * maxHalf;
 					// Below about a third of a pixel it is just noise on the line.
 					if (half < 0.35) continue;
-					ctx.strokeStyle = `rgba(255,255,255,${0.1 + 0.26 * amp})`;
+					ctx.strokeStyle = inkA(0.1 + 0.26 * amp);
 					ctx.beginPath();
 					ctx.moveTo(bp[0] - enx * half, bp[1] - eny * half);
 					ctx.lineTo(bp[0] + enx * half, bp[1] + eny * half);
@@ -720,10 +860,11 @@
 			const pEnd = bz(1, P0, P1, P2);
 			ctx.beginPath();
 			ctx.arc(pEnd[0], pEnd[1], 2, 0, Math.PI * 2);
-			ctx.fillStyle = 'rgba(255,255,255,0.15)';
+			ctx.fillStyle = inkA(0.15);
 			ctx.fill();
 
 			const { towerW, towerH, towerGap, domeR } = getTowerDims(w);
+			const P = pal();
 
 			// The hemisphere the towers stand on. Its apex is exactly towerBaseY,
 			// so the towers meet it instead of floating over it, and it is drawn
@@ -743,12 +884,20 @@
 			];
 			// Depth 1 is the nearest point of the sphere, 0 the furthest.
 			const depthAt = (f, a) => (Math.sin(f) * Math.sin(a) + 1) / 2;
-			/** Walk a colour ramp and set an alpha, both from the same depth. */
+			/**
+			 * Walk a colour ramp and set an alpha, both from the same depth.
+			 *
+			 * The clamp is not defensive tidying. An alpha over 1 makes the whole
+			 * rgba() string invalid, and an invalid strokeStyle is *ignored* — the
+			 * previous colour stays set, silently. The light theme presses its
+			 * lines harder than the dark one, went over 1, and drew the entire
+			 * globe in whatever colour happened to be loaded: black.
+			 */
 			const shade = (far, near, d, a0, a1) =>
 				`rgba(${Math.round(far[0] + (near[0] - far[0]) * d)},` +
 				`${Math.round(far[1] + (near[1] - far[1]) * d)},` +
 				`${Math.round(far[2] + (near[2] - far[2]) * d)},` +
-				`${(a0 + a1 * d).toFixed(3)})`;
+				`${Math.min(1, a0 + a1 * d).toFixed(3)})`;
 
 			// One turn per GLOBE_SPIN_MS, off the wall clock, so the loop is
 			// seamless and does not drift with frame rate.
@@ -782,7 +931,7 @@
 			// slice of the spectrum, and the latitudes ride the kick. eqMix gates
 			// all of it, so a silent page draws exactly what it drew before.
 			//
-			// Mixing toward BEAT_NEAR rather than adding a second pass keeps this
+			// Mixing toward the hot colour rather than adding a second pass keeps this
 			// to the same stroke count — the lines get hotter, nothing new is
 			// drawn over them.
 			const mix3 = (base, hot, u) => [
@@ -794,18 +943,18 @@
 			// The wireframe is a fixture too: the grid takes the colour the desk is
 			// on, so the planet changes with the room rather than staying blue
 			// while everything around it turns magenta.
-			const rigHot = reduceMotion ? BEAT_NEAR : RIG_COLOURS[rigColour];
+			const rigHot = reduceMotion ? pal().beat : pal().rig[rigColour];
 
 			// Latitudes, apex to equator. Circles of constant f, so the spin does
 			// not move them — only the meridians and the coastlines turn. The
 			// kick is what they ride, so they flare as one on the beat.
 			const kick = eqMix * Math.max(level, bandHit[0]);
-			const latNear = mix3(OCEAN_NEAR, rigHot, Math.min(1, kick * 1.1));
+			const latNear = mix3(P.oceanNear, rigHot, Math.min(1, kick * 1.1));
 			for (const deg of [15, 31, 47, 63, 79, 90]) {
 				const f = deg * Math.PI / 180;
 				domeCurve((u) => { const a = u * TWO_PI; return [domePt(f, a), f, a]; },
-					latSteps, OCEAN_FAR, latNear, 0.12 + 0.10 * eqMix + 0.12 * kick,
-					0.40 + 0.22 * eqMix + 0.34 * kick);
+					latSteps, P.oceanFar, latNear, (0.12 + 0.10 * eqMix + 0.12 * kick) * P.lineBoost,
+					(0.40 + 0.22 * eqMix + 0.34 * kick) * P.lineBoost);
 			}
 			// Meridians, apex to rim. Twelve half-arcs close the sphere's top —
 			// and, with the track running, twelve bands of the spectrum. The
@@ -820,10 +969,10 @@
 				const band = eqMix
 					* eqBars[Math.min(EQ_BARS - 1, Math.round((k / 12) * (EQ_BARS - 1)))]
 					* (reduceMotion ? 1 : 0.35 + 0.9 * chase);
-				const near = mix3(OCEAN_NEAR, rigHot, Math.min(1, band * 2.2));
+				const near = mix3(P.oceanNear, rigHot, Math.min(1, band * 2.2));
 				domeCurve((u) => { const f = u * (Math.PI / 2); return [domePt(f, a), f, a]; },
-					merSteps, OCEAN_FAR, near, 0.12 + 0.10 * eqMix + 0.26 * band,
-					0.40 + 0.22 * eqMix + 0.5 * band);
+					merSteps, P.oceanFar, near, (0.12 + 0.10 * eqMix + 0.26 * band) * P.lineBoost,
+					(0.40 + 0.22 * eqMix + 0.5 * band) * P.lineBoost);
 			}
 
 			// The limb: where the sphere turns away from us, which in this
@@ -834,9 +983,9 @@
 			// edge that reads at a glance, so the kick lands there hardest.
 			ctx.lineWidth = (w < 480 ? 0.8 : 1.1) * (1 + 1.6 * kick);
 			{
-				const atmo = mix3([128, 206, 255], rigHot, Math.min(1, kick * 1.3));
+				const atmo = mix3(P.atmo, rigHot, Math.min(1, kick * 1.3));
 				ctx.strokeStyle = `rgba(${Math.round(atmo[0])},${Math.round(atmo[1])},` +
-					`${Math.round(atmo[2])},${(0.5 + 0.5 * kick).toFixed(3)})`;
+					`${Math.round(atmo[2])},${Math.min(1, (0.5 + 0.5 * kick) * P.lineBoost).toFixed(3)})`;
 			}
 			ctx.beginPath();
 			for (const a of [0, Math.PI]) {
@@ -878,8 +1027,8 @@
 						const u = s / coastStep;
 						const [f, a] = coastFA(lat0 + (lat1 - lat0) * u, lon0 + (lon1 - lon0) * u);
 						const pt = domePt(f, a);
-						ctx.strokeStyle = shade(LAND_FAR, LAND_NEAR, depthAt(f, a),
-							0.18 + 0.16 * eqMix, 0.55 + 0.3 * eqMix);
+						ctx.strokeStyle = shade(P.landFar, P.landNear, depthAt(f, a),
+							(0.18 + 0.16 * eqMix) * P.lineBoost, (0.55 + 0.3 * eqMix) * P.lineBoost);
 						ctx.beginPath();
 						ctx.moveTo(prev[0], prev[1]);
 						ctx.lineTo(pt[0], pt[1]);
@@ -902,9 +1051,10 @@
 				const cloudSpin = spin * CLOUD_DRIFT;
 				const puffR = domeR * 0.105;
 				ctx.save();
-				// Additive, so puffs that overlap build into a bank instead of
-				// stacking into a flat grey disc.
-				ctx.globalCompositeOperation = 'lighter';
+				// Additive on black, so puffs that overlap build into a bank instead
+				// of stacking into a flat grey disc. On the pastel sky they are
+				// simply painted on, which is what a white cloud does to paper.
+				ctx.globalCompositeOperation = P.blend;
 				for (const cell of CLOUD_CELLS) {
 					const cosLat = Math.max(0.25, Math.cos(cell.lat * Math.PI / 180));
 					for (const puff of cell.puffs) {
@@ -918,7 +1068,7 @@
 						if (d < 0.52) continue;
 						const face = Math.min(1, (d - 0.52) / 0.30);
 						// The beat lights the tops, the same way it lights the limb.
-						const alpha = cloudMix * face * face * (0.15 + 0.18 * kick);
+						const alpha = cloudMix * face * face * (0.15 + 0.18 * kick) * P.cloudAlpha;
 						if (alpha < 0.004) continue;
 						const x = domeCX + cloudR * Math.sin(f) * Math.cos(a);
 						const y = domeCY - cloudR * Math.cos(f)
@@ -939,24 +1089,29 @@
 			// by the kick detector, which caps it under three a second, and held
 			// to FLASH_PEAK — over a black hero that is already a hard flash.
 			if (flash > 0.01 && !reduceMotion) {
-				const c = RIG_COLOURS[rigColour];
+				const c = pal().rig[rigColour];
 				ctx.save();
-				ctx.globalCompositeOperation = 'lighter';
+				ctx.globalCompositeOperation = P.blend;
 				ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${(flash * FLASH_PEAK * eqMix).toFixed(3)})`;
 				ctx.fillRect(0, 0, w, h);
 				ctx.restore();
 			}
 
-			// Two tall wireframe rectangles standing on the apex.
+			// What stands on the apex. Two tall wireframe rectangles in the dark
+			// theme; in the light one, the candy mountain they are the joke about.
 			const tx1 = towerBaseX - towerGap / 2 - towerW;
 			const tx2 = towerBaseX + towerGap / 2;
 
-			ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-			ctx.lineWidth = w < 480 ? 0.7 : 1;
-			// Left tower
-			ctx.strokeRect(tx1, towerBaseY - towerH, towerW, towerH);
-			// Right tower
-			ctx.strokeRect(tx2, towerBaseY - towerH, towerW, towerH);
+			if (isLight()) {
+				drawCandyMountain(w, towerBaseX, towerBaseY, towerW, towerH, towerGap);
+			} else {
+				ctx.strokeStyle = inkA(0.25);
+				ctx.lineWidth = w < 480 ? 0.7 : 1;
+				// Left tower
+				ctx.strokeRect(tx1, towerBaseY - towerH, towerW, towerH);
+				// Right tower
+				ctx.strokeRect(tx2, towerBaseY - towerH, towerW, towerH);
+			}
 
 			// 3D "21" orientation: aligns with path tangent
 			const tan = bzd(t, P0, P1, P2);
@@ -987,7 +1142,11 @@
 			const finalAngle = tangentAngle + bob;
 			const cfa = Math.cos(finalAngle), sfa = Math.sin(finalAngle);
 
-			const projected = V3.map(([mx, my, mz]) => {
+			// Which creature is on the wing.
+			const MODEL_V3 = isLight() ? UNICORN_V3 : V3;
+			const MODEL_E3 = isLight() ? UNICORN_E3 : E3;
+
+			const projected = MODEL_V3.map(([mx, my, mz]) => {
 				// Yaw: rotate around Y axis
 				let x1 = mx * cyaw + mz * syaw;
 				let z1 = -mx * syaw + mz * cyaw;
@@ -1010,9 +1169,9 @@
 			});
 
 			// Wireframe edges
-			ctx.strokeStyle = 'rgba(255,255,255,0.65)';
+			ctx.strokeStyle = inkA(0.65);
 			ctx.lineWidth = w < 480 ? 0.7 : 1;
-			for (const [a, b] of E3) {
+			for (const [a, b] of MODEL_E3) {
 				if (!projected[a] || !projected[b]) continue;
 				ctx.beginPath();
 				ctx.moveTo(projected[a][0], projected[a][1]);
@@ -1023,7 +1182,7 @@
 			// Glow at the number's position
 			ctx.beginPath();
 			ctx.arc(pAt[0], pAt[1], w < 480 ? 2 : 3, 0, Math.PI * 2);
-			ctx.fillStyle = 'rgba(255,255,255,0.5)';
+			ctx.fillStyle = inkA(0.5);
 			ctx.fill();
 
 			frame = requestAnimationFrame(draw);
@@ -1072,6 +1231,51 @@
 
 	// ── Album track ──
 	// BIRTH is track 1 of Ammoura.me, and its album route is "/" — this page.
+	// ── Theme ──
+	// Dark is the teaser. Light is the other side of the joke: a pastel sky, a
+	// unicorn flying the arc the launch date flew, and a candy mountain standing
+	// where the towers stood.
+	//
+	// It does NOT follow prefers-color-scheme. Swapping a launch teaser's hero
+	// for a unicorn because someone's laptop is in light mode is a surprise
+	// nobody asked for; this is a thing a visitor chooses, and the choice sticks.
+	let theme = $state('dark');
+	const isLight = () => theme === 'light';
+
+	function applyTheme(next) {
+		theme = next;
+		if (typeof document !== 'undefined') {
+			document.documentElement.dataset.theme = next;
+			// The two bits of chrome outside the page: the browser UI tint, and
+			// the hint that decides how form controls and scrollbars are drawn.
+			// Left on "dark" they render dark widgets on a pastel page.
+			const light = next === 'light';
+			document.querySelector('meta[name="theme-color"]')
+				?.setAttribute('content', light ? '#fff7fb' : '#000000');
+			document.querySelector('meta[name="color-scheme"]')
+				?.setAttribute('content', next);
+		}
+		try {
+			localStorage.setItem('ammoura-theme', next);
+		} catch {
+			/* private window, or storage refused — the theme just will not stick */
+		}
+	}
+
+	function toggleTheme() {
+		applyTheme(isLight() ? 'dark' : 'light');
+	}
+
+	onMount(() => {
+		let saved = null;
+		try {
+			saved = localStorage.getItem('ammoura-theme');
+		} catch {
+			/* nothing stored, or storage refused */
+		}
+		if (saved === 'light' || saved === 'dark') applyTheme(saved);
+	});
+
 	let audioEl = $state();
 	let playing = $state(false);
 
@@ -1099,6 +1303,70 @@
 	const EQ_FADE_IN = 0.05; // how fast the whole effect appears on play
 	const EQ_FADE_OUT = 0.03; // and clears on pause
 
+	// ── Palettes ──
+	// Every colour the canvas draws lives here, twice. The dark theme's values
+	// are exactly what they have always been.
+	//
+	// `blend` is the part that is not a colour and matters most. Additive
+	// compositing is how light behaves on black, and it is useless on a pale
+	// sky: adding to near-white is white, so beams and clouds would vanish.
+	// The light theme draws the same shapes over the top instead, which is
+	// how paint behaves on paper.
+	const PALETTES = {
+		dark: {
+			oceanFar: [34, 62, 132],
+			oceanNear: [96, 184, 250],
+			landFar: [44, 110, 76],
+			landNear: [132, 226, 136],
+			atmo: [128, 206, 255],
+			ink: [255, 255, 255],
+			cloud: [255, 255, 255],
+			cloudAlpha: 1,
+			blend: 'lighter',
+			// How hard the wireframe is pressed. One on black, where a faint line
+			// still glows; more on paper, where it does not.
+			lineBoost: 1,
+			// The gentler pulse the reduced-motion path falls back to.
+			beat: [186, 244, 255],
+			rig: [
+				[255, 46, 124],  // magenta
+				[64, 208, 255],  // cyan
+				[255, 176, 48],  // amber
+				[126, 255, 138], // green
+				[158, 96, 255],  // violet
+				[236, 248, 255], // white
+			],
+		},
+		light: {
+			// Candy: a raspberry sea, mint land, and a sherbet limb. Darker
+			// than the dark theme's colours, because here they have to hold
+			// against paper rather than glow against black.
+			oceanFar: [216, 176, 230],
+			oceanNear: [172, 74, 156],
+			landFar: [158, 214, 186],
+			landNear: [34, 158, 118],
+			atmo: [236, 96, 168],
+			ink: [58, 30, 66],
+			cloud: [255, 255, 255],
+			// Clouds on a pink sky are white and nearly opaque — the one place the
+			// light theme is simpler than the dark one. Not fully opaque, though:
+			// at 2.6 the banks piled up and bleached the lower half of the sky.
+			cloudAlpha: 1.55,
+			blend: 'source-over',
+			lineBoost: 1.35,
+			beat: [232, 92, 168],
+			rig: [
+				[255, 92, 164],  // bubblegum
+				[124, 196, 255], // sky
+				[255, 196, 64],  // lemon sherbet
+				[108, 224, 168], // spearmint
+				[178, 130, 255], // grape
+				[255, 148, 196], // candy floss
+			],
+		},
+	};
+	const pal = () => PALETTES[isLight() ? 'light' : 'dark'];
+
 	// ── The rig ──
 	// Concert lighting, hung off the towers and pointed at everything. A single
 	// smoothed loudness was enough to make the 21 bob; it is nowhere near enough
@@ -1121,17 +1389,9 @@
 	// flashes a second.
 	const RIG_SENS = [1.32, 1.22, 1.16];
 	const RIG_GATE = [340, 190, 110];
-	// Colours a lighting desk would actually pick: saturated, few, and swapped on
-	// the beat rather than cycled continuously through a hue wheel, which always
-	// reads as a screensaver.
-	const RIG_COLOURS = [
-		[255, 46, 124],  // magenta
-		[64, 208, 255],  // cyan
-		[255, 176, 48],  // amber
-		[126, 255, 138], // green
-		[158, 96, 255],  // violet
-		[236, 248, 255], // white
-	];
+	// The desk's colours live in the palettes: saturated, few, and swapped on the
+	// beat rather than cycled continuously through a hue wheel, which always reads
+	// as a screensaver.
 	const BEAM_COUNT = 13;
 	// Peak alpha of the strobe wash. Deliberately low: over a black hero even a
 	// gentle wash reads as a flash, and this sits behind the copy at a rate the
@@ -1154,7 +1414,7 @@
 	const bandHit = [0, 0, 0];
 	const lastHitAt = [0, 0, 0];
 	let rigPhase = 0;   // drives the sweep; runs faster when the track is busy
-	let rigColour = 0;  // index into RIG_COLOURS, advanced on the kick
+	let rigColour = 0;  // index into the palette's rig colours, advanced on the kick
 	let rigSnap = 0;    // 0..1, how recently the beams were thrown somewhere new
 	let flash = 0;      // strobe envelope
 	// A show that flashes and sweeps is exactly what this setting is for. The
@@ -1207,7 +1467,7 @@
 				if (b === 0) {
 					// The kick runs the desk: new colour, new beam positions, and
 					// the wash behind the planet.
-					rigColour = (rigColour + 1 + (Math.random() * 2 | 0)) % RIG_COLOURS.length;
+					rigColour = (rigColour + 1 + (Math.random() * 2 | 0)) % pal().rig.length;
 					rigSnap = 1;
 					flash = Math.min(1, flash + 0.55 + 0.45 * e);
 				}
@@ -1665,13 +1925,55 @@
 	<span class="built-brand">*Space</span>
 </a>
 
+<!-- The theme switch. Deliberately small and in the footer rather than up in
+     the hero: the light theme is a thing to find, not the first decision the
+     page asks a visitor to make. -->
+<button class="theme-toggle" type="button" onclick={toggleTheme}
+	aria-pressed={theme === 'light'}
+	title={theme === 'light' ? 'Back to the dark side' : 'Somewhere over the rainbow'}>
+	<span aria-hidden="true">{theme === 'light' ? '\u{1F319}' : '\u{1F984}'}</span>
+	<span class="theme-toggle-label">
+		{theme === 'light' ? 'Switch to the dark theme' : 'Switch to the light theme'}
+	</span>
+</button>
+
 <footer class="site-footer">
 	<a href="/privacy">Privacy Policy</a>
 	<span aria-hidden="true">&middot;</span>
 	<a href="/terms">Terms of Service</a>
 </footer>
 
+
 <style>
+	/* ── Themes ──
+	   Two of them, and they are not the same page in two palettes. Dark is the
+	   teaser: black, a wireframe planet, a launch date flying in on an arc.
+	   Light is the other side of the same joke — a pastel sky, a unicorn where
+	   the date was, and a candy mountain where the towers were.
+
+	   Everything below is written once against these tokens, so the dark theme
+	   still renders exactly what it rendered before the light one existed. */
+	:global(html) {
+		--ink-rgb: 255 255 255;
+		--ink: #fff;
+		--ground: #000;
+		/* The halo that keeps the copy readable where the planet crosses it. */
+		--halo-rgb: 6 7 9;
+		--panel-rgb: 10 12 16;
+		--accent-rgb: 132 226 136;
+	}
+
+	:global(html[data-theme='light']) {
+		/* A deep plum rather than black: on a pastel ground pure black is a hole,
+		   and every alpha below was chosen against a coloured ink. */
+		--ink-rgb: 58 30 66;
+		--ink: #3a1e42;
+		--ground: #fff7fb;
+		--halo-rgb: 255 248 252;
+		--panel-rgb: 255 255 255;
+		--accent-rgb: 236 92 168;
+	}
+
 	:global(*, *::before, *::after) {
 		box-sizing: border-box;
 		margin: 0;
@@ -1679,11 +1981,19 @@
 	}
 
 	:global(html, body) {
-		background: #000;
-		color: #fff;
+		background: var(--ground);
+		color: var(--ink);
 		font-family: 'Georgia', serif;
 		scroll-behavior: smooth;
 		-webkit-text-size-adjust: 100%;
+	}
+
+	/* The light theme's ground is a sky: dawn pink at the top, through lilac, to
+	   a mint horizon. Fixed, so it does not slide as the page scrolls. */
+	:global(html[data-theme='light'] body) {
+		background:
+			linear-gradient(180deg, #ffeef7 0%, #f6ecff 38%, #eef6ff 68%, #ecfbf3 100%)
+			fixed;
 	}
 
 	main {
@@ -1691,6 +2001,57 @@
 		min-height: 100dvh;
 		display: flex;
 		flex-direction: column;
+	}
+
+
+	/* ── Theme switch ──
+	   Sits opposite the "built at" pill, matching its shape so the two read as a
+	   pair of footnotes rather than as a control bolted on. */
+	.theme-toggle {
+		position: fixed;
+		left: 1rem;
+		bottom: 3.4rem;
+		z-index: 5;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 34px;
+		height: 34px;
+		font-size: 1rem;
+		line-height: 1;
+		border: 1px solid rgb(var(--ink-rgb) / 0.18);
+		border-radius: 999px;
+		background: rgb(var(--panel-rgb) / 0.55);
+		color: var(--ink);
+		cursor: pointer;
+		opacity: 0.6;
+		transition: opacity 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+	}
+
+	.theme-toggle:hover,
+	.theme-toggle:focus-visible {
+		opacity: 1;
+		border-color: rgb(var(--ink-rgb) / 0.4);
+		transform: translateY(-1px);
+	}
+
+	/* The label is for screen readers; the emoji carries it for everyone else. */
+	.theme-toggle-label {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+	}
+
+	/* The light theme's copy sits over a pale sky, so the glow that keeps it
+	   readable has to become a light one rather than a dark one. The rule is the
+	   same either way; only --halo-rgb changed. */
+	@media (max-width: 560px) {
+		.theme-toggle {
+			bottom: 4.2rem;
+		}
 	}
 
 	/* ── Countdown ── */
@@ -1806,8 +2167,8 @@
 	.hint,
 	.countdown {
 		text-shadow:
-			0 0 6px rgba(6, 7, 9, 0.92),
-			0 1px 3px rgba(6, 7, 9, 0.8);
+			0 0 6px rgb(var(--halo-rgb) / 0.92),
+			0 1px 3px rgb(var(--halo-rgb) / 0.8);
 	}
 
 	.tagline {
@@ -1834,13 +2195,13 @@
 
 	/* Setup sits back, punch comes forward. Dimmed with colour rather than
 	   opacity so the reveal below can own opacity outright.
-	   rgba(255,255,255,0.55) on black is 6.2:1 — AA at this size. */
+	   rgb(var(--ink-rgb) / 0.55) on black is 6.2:1 — AA at this size. */
 	h1 .setup {
-		color: rgba(255, 255, 255, 0.55);
+		color: rgb(var(--ink-rgb) / 0.55);
 	}
 
 	h1 .punch {
-		color: #fff;
+		color: var(--ink);
 	}
 
 	/* The one word the sentence is built around. Georgia's italic earns its
@@ -1848,7 +2209,7 @@
 	   prefers-reduced-motion, and `ignite` only animates up to it. */
 	h1 .punch em {
 		font-style: italic;
-		text-shadow: 0 0 38px rgba(255, 255, 255, 0.28);
+		text-shadow: 0 0 38px rgb(var(--ink-rgb) / 0.28);
 	}
 
 	/* Says what this actually is, quietly. 0.5 white on black is 5.3:1. */
@@ -1856,7 +2217,7 @@
 		font-size: 0.85rem;
 		line-height: 1.6;
 		letter-spacing: 0.04em;
-		color: rgba(255, 255, 255, 0.5);
+		color: rgb(var(--ink-rgb) / 0.5);
 		max-width: 30em;
 		margin-top: 0.35rem;
 		margin-bottom: 2.25rem;
@@ -1879,7 +2240,7 @@
 
 	@keyframes ignite {
 		from {
-			text-shadow: 0 0 0 rgba(255, 255, 255, 0);
+			text-shadow: 0 0 0 rgb(var(--ink-rgb) / 0);
 		}
 	}
 
@@ -1920,8 +2281,8 @@
 	/* ── Buttons ── */
 	button {
 		background: none;
-		border: 1px solid #fff;
-		color: #fff;
+		border: 1px solid var(--ink);
+		color: var(--ink);
 		font-family: inherit;
 		font-size: 0.9rem;
 		letter-spacing: 0.2em;
@@ -1934,18 +2295,18 @@
 	}
 
 	button:hover {
-		background: #fff;
-		color: #000;
+		background: var(--ink);
+		color: var(--ground);
 	}
 
 	@media (hover: none) {
 		button:active {
-			background: #fff;
-			color: #000;
+			background: var(--ink);
+			color: var(--ground);
 		}
 		button:hover {
 			background: none;
-			color: #fff;
+			color: var(--ink);
 		}
 	}
 
@@ -2022,18 +2383,18 @@
 		}
 	}
 	.site-footer a {
-		color: rgba(255, 255, 255, 0.72);
+		color: rgb(var(--ink-rgb) / 0.72);
 		text-decoration: none;
 		/* The arc and the number can pass behind this, so give the text its own
 		   ground rather than relying on the page being black. */
-		text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+		text-shadow: 0 1px 3px rgb(var(--halo-rgb) / 0.9);
 	}
 	.site-footer a:hover,
 	.site-footer a:focus-visible {
-		color: #fff;
+		color: var(--ink);
 	}
 	.site-footer span {
-		color: rgba(255, 255, 255, 0.35);
+		color: rgb(var(--ink-rgb) / 0.35);
 	}
 
 	/* ── "Currently being built at *Space" ── */
@@ -2050,21 +2411,21 @@
 		align-items: center;
 		gap: 0.5rem;
 		padding: 0.4rem 0.75rem;
-		border: 1px solid rgba(255, 255, 255, 0.14);
+		border: 1px solid rgb(var(--ink-rgb) / 0.14);
 		border-radius: 999px;
-		background: rgba(10, 12, 16, 0.55);
+		background: rgb(var(--panel-rgb) / 0.55);
 		backdrop-filter: blur(6px);
 		-webkit-backdrop-filter: blur(6px);
 		font-size: 0.66rem;
 		text-decoration: none;
-		color: rgba(255, 255, 255, 0.6);
+		color: rgb(var(--ink-rgb) / 0.6);
 		transition: color 0.2s, border-color 0.2s, background 0.2s;
 	}
 	.built-at:hover,
 	.built-at:focus-visible {
-		color: rgba(255, 255, 255, 0.9);
-		border-color: rgba(255, 255, 255, 0.3);
-		background: rgba(10, 12, 16, 0.75);
+		color: rgb(var(--ink-rgb) / 0.9);
+		border-color: rgb(var(--ink-rgb) / 0.3);
+		background: rgb(var(--panel-rgb) / 0.75);
 	}
 
 	/* Uppercase stops at the label: "*Space" is a name, not a shouted word. */
@@ -2096,7 +2457,7 @@
 	.built-brand {
 		letter-spacing: 0.04em;
 		font-size: 0.78rem;
-		color: rgba(255, 255, 255, 0.92);
+		color: rgb(var(--ink-rgb) / 0.92);
 	}
 
 	/* Still building. The colour is the globe's near-side green, so the one
@@ -2106,8 +2467,8 @@
 		height: 5px;
 		flex: none;
 		border-radius: 50%;
-		background: rgb(132, 226, 136);
-		box-shadow: 0 0 6px rgba(132, 226, 136, 0.8);
+		background: rgb(var(--accent-rgb));
+		box-shadow: 0 0 6px rgb(var(--accent-rgb) / 0.8);
 		animation: built-pulse 2.4s ease-in-out infinite;
 	}
 
@@ -2148,19 +2509,19 @@
 		gap: 0.6rem;
 		margin: 0 auto 2rem;
 		padding: 0.7rem 1.4rem;
-		border: 1px solid rgba(255, 255, 255, 0.4);
+		border: 1px solid rgb(var(--ink-rgb) / 0.4);
 		border-radius: 999px;
 		min-height: 44px;
 		font-size: 0.7rem;
 	}
 	.play-btn:hover,
 	.play-btn:focus-visible {
-		background: #fff;
-		color: #000;
-		border-color: #fff;
+		background: var(--ink);
+		color: var(--ground);
+		border-color: var(--ink);
 	}
 	.play-btn[aria-pressed='true'] {
-		border-color: #fff;
+		border-color: var(--ink);
 	}
 	.play-label {
 		letter-spacing: 0.2em;
@@ -2191,19 +2552,19 @@
 		min-width: 0;
 		background: none;
 		border: none;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.4);
-		color: #fff;
+		border-bottom: 1px solid rgb(var(--ink-rgb) / 0.4);
+		color: var(--ink);
 		font-family: inherit;
 		font-size: 1rem;
 		padding: 0.6rem 0;
 		border-radius: 0;
 	}
 	.join-row input::placeholder {
-		color: rgba(255, 255, 255, 0.3);
+		color: rgb(var(--ink-rgb) / 0.3);
 	}
 	.join-row input:focus {
 		outline: none;
-		border-bottom-color: #fff;
+		border-bottom-color: var(--ink);
 	}
 	.join-row button {
 		flex: 0 0 auto;
@@ -2238,9 +2599,9 @@
 		gap: 0.5rem;
 		padding: 0.65rem 1.1rem;
 		min-height: 44px;
-		border: 1px solid rgba(255, 255, 255, 0.25);
+		border: 1px solid rgb(var(--ink-rgb) / 0.25);
 		border-radius: 4px;
-		color: #fff;
+		color: var(--ink);
 		text-decoration: none;
 		font-size: 0.7rem;
 		letter-spacing: 0.15em;
@@ -2250,8 +2611,8 @@
 	}
 	.provider:hover,
 	.provider:focus-visible {
-		border-color: #fff;
-		background: rgba(255, 255, 255, 0.07);
+		border-color: var(--ink);
+		background: rgb(var(--ink-rgb) / 0.07);
 	}
 	.provider :global(svg) {
 		flex: 0 0 auto;
@@ -2348,7 +2709,7 @@
 		gap: 0.6rem;
 		margin-top: 1rem;
 		border: 1px solid #5865f2;
-		color: #fff;
+		color: var(--ink);
 		background: none;
 		font-family: inherit;
 		font-size: 0.85rem;
@@ -2364,17 +2725,17 @@
 
 	.discord-btn:hover {
 		background: #5865f2;
-		color: #fff;
+		color: var(--ink);
 	}
 
 	@media (hover: none) {
 		.discord-btn:active {
 			background: #5865f2;
-			color: #fff;
+			color: var(--ink);
 		}
 		.discord-btn:hover {
 			background: none;
-			color: #fff;
+			color: var(--ink);
 		}
 	}
 
