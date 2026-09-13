@@ -1164,6 +1164,14 @@
 	<span class="built-dot" aria-hidden="true"></span>
 	<span class="built-label built-label-full">Currently being built at</span>
 	<span class="built-label built-label-short">Building at</span>
+	<!-- The mark and the wordmark are one lockup, so they sit together at the
+	     end. The image is the published *Space artifact copied verbatim — the
+	     mark is a photograph of carved wood and the brand rules forbid redrawing
+	     it, so this is never an SVG approximation. It carries no alt text: the
+	     wordmark beside it already names the brand, and a second "*Space" would
+	     just be read out twice. -->
+	<img class="built-mark" src="/brand/starspace-mark.webp" alt="" width="16" height="16"
+		loading="lazy" decoding="async" />
 	<span class="built-brand">*Space</span>
 </a>
 
@@ -1579,6 +1587,20 @@
 	   hide, so a screen reader gets the one sentence and not both. */
 	.built-label-short {
 		display: none;
+	}
+
+	/* The mark and the wordmark are a pair: tighten the gap between just those
+	   two so they read as one lockup rather than two more items in the row. */
+	.built-mark {
+		width: 16px;
+		height: 16px;
+		flex: none;
+		margin-left: 0.1rem;
+		margin-right: -0.15rem;
+		object-fit: contain;
+		/* The mark is warm wood on a dark pill. A touch of lift keeps it from
+		   going muddy at 16px without altering the artwork itself. */
+		filter: brightness(1.12) saturate(1.05);
 	}
 
 	.built-brand {
