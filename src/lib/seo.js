@@ -86,5 +86,20 @@ export const CAPABILITIES = [
 export const OG_IMAGE_PATH = '/og.png';
 export const OG_IMAGE_WIDTH = 1200;
 export const OG_IMAGE_HEIGHT = 630;
-export const OG_IMAGE_ALT = 'Ammoura — build your empire';
+/**
+ * Launch day as words, in the launch's own timezone.
+ *
+ * Arizona rather than the reader's zone: the card and the alt text should name
+ * the date the countdown actually ends on, which is fixed, not the date it is
+ * where the reader happens to be sitting. Derived rather than written out so it
+ * cannot drift from LAUNCH_ISO the way a second copy would.
+ */
+export const LAUNCH_LABEL = new Intl.DateTimeFormat('en-GB', {
+	day: 'numeric',
+	month: 'long',
+	year: 'numeric',
+	timeZone: 'America/Phoenix'
+}).format(new Date(LAUNCH_ISO));
+
+export const OG_IMAGE_ALT = `Ammoura — Build Your Empire. Launching ${LAUNCH_LABEL}.`;
 export const OG_IMAGE_TYPE = 'image/png';
