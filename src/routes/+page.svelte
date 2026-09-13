@@ -49,9 +49,9 @@
 	let taglineEl = $state();
 	const FLIGHT_START = new Date('2026-03-22T00:00:00-05:00').getTime();
 
-	// While the track is playing, the arc IS the track: the 9 takes off on the
-	// first note and lands on the last. Read straight off the audio element so
-	// pausing and seeking stay in sync for free.
+	// While the track is playing, the arc IS the track: the number takes off on
+	// the first note and lands on the last. Read straight off the audio element
+	// so pausing and seeking stay in sync for free.
 	// The Ammoura Discord server.
 	const AMMOURA_DISCORD = 'https://discord.gg/dPRvKFS9dq';
 
@@ -73,70 +73,135 @@
 		const ctx = flightCanvas.getContext('2d');
 		if (!ctx) return;
 
-		// 3D wireframe "9" character — torus (bowl) + cylinder (tail)
+		// 3D wireframe "21" — launch day, swept as tubes along digit centerlines.
+		//
+		// It used to be a hand-built "9": a torus for the bowl and a cylinder for
+		// the tail. Two digits do not decompose that neatly, so the shape is now
+		// described the way a sign-writer would describe it — a centerline path
+		// per stroke — and one sweep turns each path into the same round tube.
+		// Moving launch day again means editing DIGITS, not the geometry.
 		const TWO_PI = Math.PI * 2;
 		const V3 = [];
 		const E3 = [];
 
-		const majR = 0.5;       // bowl major radius
-		const tubR = 0.065;     // tube cross-section radius
-		const bowlCY = 0.35;    // bowl center Y
-		const bowlCZ = 0.0;     // bowl center Z
-		const majSegs = 16;     // segments around bowl circle
+		const tubR = 0.075;     // tube cross-section radius, before GLYPH_SCALE
 		const minSegs = 6;      // segments per tube cross-section
+		const arcSegs = 5;      // segments per quarter-turn of a curved stroke
+		const MAX_STEP = 0.15;  // longest gap between rings, so straights get rungs too
 
-		// ── Bowl: torus in YZ plane ──
-		for (let i = 0; i < majSegs; i++) {
-			const a = (i / majSegs) * TWO_PI;
-			const baseIdx = V3.length;
-			for (let j = 0; j < minSegs; j++) {
-				const b = (j / minSegs) * TWO_PI;
-				V3.push([
-					tubR * Math.cos(b),
-					bowlCY + (majR + tubR * Math.sin(b)) * Math.cos(a),
-					bowlCZ + (majR + tubR * Math.sin(b)) * Math.sin(a),
-				]);
+		// Two digits are wider than one, so the pair is scaled to keep roughly the
+		// ink area the old single digit had. Uniform, so the tube thins with it.
+		const GLYPH_SCALE = 0.78;
+
+		// Digit space: z is across, y is up, baseline at -0.65 and cap at 0.85.
+		// The model is flat in x — the view yaw turns z into screen-width — so a
+		// stroke is a polyline in the zy plane and the sweep gives it thickness.
+		const BASE_Y = -0.65;
+		const CAP_Y = 0.85;
+
+		/** Sample a circular arc in the zy plane. Angles in radians, y up. */
+		function arcPts(cz, cy, r, a0, a1) {
+			const steps = Math.max(2, Math.round((Math.abs(a1 - a0) / (Math.PI / 2)) * arcSegs));
+			const pts = [];
+			for (let i = 0; i <= steps; i++) {
+				const a = a0 + (a1 - a0) * (i / steps);
+				pts.push([cz + r * Math.cos(a), cy + r * Math.sin(a)]);
 			}
-			for (let j = 0; j < minSegs; j++) {
-				E3.push([baseIdx + j, baseIdx + (j + 1) % minSegs]);
-			}
-			if (i > 0) {
-				for (let j = 0; j < minSegs; j++) {
-					E3.push([baseIdx - minSegs + j, baseIdx + j]);
-				}
-			}
-		}
-		// Close torus ring
-		for (let j = 0; j < minSegs; j++) {
-			E3.push([(majSegs - 1) * minSegs + j, j]);
+			return pts;
 		}
 
-		// ── Tail: cylinder from 3-o'clock of bowl, descending ──
-		const tailZ = bowlCZ + majR;
-		const tailStartY = bowlCY;
-		const tailEndY = -0.65;
-		const tailSegs = 8;
+		/** Subdivide so no gap between rings is longer than MAX_STEP. */
+		function resample(path) {
+			const out = [path[0]];
+			for (let i = 1; i < path.length; i++) {
+				const [z0, y0] = path[i - 1];
+				const [z1, y1] = path[i];
+				const n = Math.max(1, Math.ceil(Math.hypot(z1 - z0, y1 - y0) / MAX_STEP));
+				for (let k = 1; k <= n; k++) out.push([z0 + (z1 - z0) * (k / n), y0 + (y1 - y0) * (k / n)]);
+			}
+			return out;
+		}
 
-		for (let i = 0; i <= tailSegs; i++) {
-			const t = i / tailSegs;
-			const y = tailStartY + (tailEndY - tailStartY) * t;
-			const baseIdx = V3.length;
-			for (let j = 0; j < minSegs; j++) {
-				const b = (j / minSegs) * TWO_PI;
-				V3.push([
-					tubR * Math.cos(b),
-					y,
-					tailZ + tubR * Math.sin(b),
-				]);
-			}
-			for (let j = 0; j < minSegs; j++) {
-				E3.push([baseIdx + j, baseIdx + (j + 1) % minSegs]);
-			}
-			if (i > 0) {
+		const D = Math.PI / 180;
+
+		// "2": a bowl over the top, a diagonal down to the baseline, a flat foot.
+		// One continuous stroke — a 2 is drawn without lifting the pen. The bowl's
+		// own exit point at -40 degrees is where the diagonal starts.
+		const twoBowl = arcPts(0, 0.47, 0.38, 195 * D, -40 * D);
+		const two = [[...twoBowl, [-0.38, BASE_Y], [0.38, BASE_Y]]];
+
+		// "1": flag, stem, and a foot. The foot is a separate stroke — it crosses
+		// the stem rather than continuing it, so sweeping them as one path would
+		// put a kink at the join.
+		const one = [
+			[[-0.24, 0.56], [0, CAP_Y], [0, BASE_Y]],
+			[[-0.25, BASE_Y], [0.25, BASE_Y]],
+		];
+
+		// Laid out left to right by box width, then centred on z = 0.
+		const DIGITS = [
+			{ strokes: two, halfW: 0.38 },
+			{ strokes: one, halfW: 0.25 },
+		];
+		const DIGIT_GAP = 0.12;
+
+		/**
+		 * Sweep a round tube along a centerline and append it to V3/E3.
+		 *
+		 * The path lies in the zy plane, so the cross-section plane is spanned by
+		 * model x (always perpendicular to it) and the in-plane normal of the
+		 * local tangent. Rings are stitched to their predecessor; an open path is
+		 * simply left open at both ends.
+		 */
+		function sweep(path, dz) {
+			let firstRing = -1;
+			let prevRing = -1;
+			for (let i = 0; i < path.length; i++) {
+				// Central difference, so a corner gets the average of both edges
+				// and the tube turns through it instead of pinching.
+				const a = path[Math.max(0, i - 1)];
+				const b = path[Math.min(path.length - 1, i + 1)];
+				let tz = b[0] - a[0];
+				let ty = b[1] - a[1];
+				const tl = Math.hypot(tz, ty) || 1;
+				tz /= tl; ty /= tl;
+				// In-plane normal: the tangent turned a quarter turn.
+				const nz = -ty, ny = tz;
+
+				const baseIdx = V3.length;
 				for (let j = 0; j < minSegs; j++) {
-					E3.push([baseIdx - minSegs + j, baseIdx + j]);
+					const c = (j / minSegs) * TWO_PI;
+					V3.push([
+						tubR * Math.cos(c),
+						path[i][1] + tubR * Math.sin(c) * ny,
+						path[i][0] + dz + tubR * Math.sin(c) * nz,
+					]);
+					E3.push([baseIdx + j, baseIdx + (j + 1) % minSegs]);
 				}
+				if (prevRing >= 0) {
+					for (let j = 0; j < minSegs; j++) E3.push([prevRing + j, baseIdx + j]);
+				} else {
+					firstRing = baseIdx;
+				}
+				prevRing = baseIdx;
 			}
+			return firstRing;
+		}
+
+		// Lay the digits out and sweep every stroke.
+		{
+			let totalW = 0;
+			for (const d of DIGITS) totalW += d.halfW * 2;
+			totalW += DIGIT_GAP * (DIGITS.length - 1);
+
+			let cursor = -totalW / 2;
+			for (const d of DIGITS) {
+				const centerZ = cursor + d.halfW;
+				for (const stroke of d.strokes) sweep(resample(stroke), centerZ);
+				cursor += d.halfW * 2 + DIGIT_GAP;
+			}
+
+			for (const v of V3) { v[0] *= GLYPH_SCALE; v[1] *= GLYPH_SCALE; v[2] *= GLYPH_SCALE; }
 		}
 
 		// 3D math helpers
@@ -179,26 +244,38 @@
 			];
 		};
 
-		// Tower dimensions (responsive)
+		// How far the equator ellipse is squashed: the one number that decides how
+		// far above the dome we appear to be standing.
+		const DOME_TILT = 0.32;
+
+		// Tower and dome dimensions (responsive). The dome lives here rather than
+		// in draw() because the layout has to reserve room for it before it knows
+		// where the towers go — the apex is the towers' base, and the dome hangs
+		// below it, so `domeDrop` is the vertical room it needs under the apex.
 		function getTowerDims(w) {
+			const domeR = w < 480 ? 27 : 38;
 			return {
 				towerW: w < 480 ? 8 : 12,
 				towerH: w < 480 ? 45 : 65,
 				towerGap: w < 480 ? 6 : 10,
+				domeR,
+				domeDrop: domeR * (1 + DOME_TILT),
 			};
 		}
 
 		function getArcPoints(w, h) {
-			const { towerW, towerH, towerGap } = getTowerDims(w);
+			const { towerW, towerH, towerGap, domeDrop } = getTowerDims(w);
 
-			// Tower base: centered horizontally, just above the tagline
+			// Tower base — which is also the dome's apex: centered horizontally,
+			// and high enough above the tagline that the dome's near rim clears
+			// the words rather than being drawn across them.
 			let baseX = w * 0.5;
 			let baseY = h * 0.38;
 			if (taglineEl) {
 				const rect = taglineEl.getBoundingClientRect();
 				const canvasRect = flightCanvas.getBoundingClientRect();
 				baseX = rect.left + rect.width / 2 - canvasRect.left;
-				baseY = rect.top - canvasRect.top - (w < 480 ? 20 : 35);
+				baseY = rect.top - canvasRect.top - (w < 480 ? 14 : 22) - domeDrop;
 			}
 
 			// Everything here is drawn *upward* from baseY, and baseY tracks the
@@ -259,7 +336,7 @@
 			const planeSize = w < 480 ? Math.min(w, h) * 0.045 : Math.min(w, h) * 0.04;
 
 			// Audio, once per frame, before anything that reacts to it is drawn.
-			// The 9 swings perpendicular to its own track and the arc becomes a
+			// The number swings perpendicular to its own track and the arc becomes a
 			// spectrum; both read the same sample, so they stay in step.
 			const nowMs = Date.now();
 			const dt = lastFrameAt ? Math.min(0.05, (nowMs - lastFrameAt) / 1000) : 0.016;
@@ -343,8 +420,59 @@
 			ctx.fillStyle = 'rgba(255,255,255,0.15)';
 			ctx.fill();
 
-			// Two tall wireframe rectangles at the tagline center
-			const { towerW, towerH, towerGap } = getTowerDims(w);
+			const { towerW, towerH, towerGap, domeR } = getTowerDims(w);
+
+			// The hemisphere the towers stand on. Its apex is exactly towerBaseY,
+			// so the towers meet it instead of floating over it, and it is drawn
+			// first so their bases cover the join.
+			//
+			// Orthographic, with the equator squashed by DOME_TILT — the one
+			// number that decides how far above the dome we appear to be. A point
+			// at polar angle f (0 at the apex) and longitude a projects to
+			// (cx + R sin f cos a, cy - R cos f + tilt R sin f sin a), so sin a is
+			// also the depth: +1 is the near rim, -1 the far one. Segments are
+			// faded by it, which is what makes a flat web of lines read as a ball.
+			const domeCX = towerBaseX;
+			const domeCY = towerBaseY + domeR;
+			const domePt = (f, a) => [
+				domeCX + domeR * Math.sin(f) * Math.cos(a),
+				domeCY - domeR * Math.cos(f) + DOME_TILT * domeR * Math.sin(f) * Math.sin(a),
+			];
+			// Depth 1 is the nearest rim, 0 the furthest.
+			const domeAlpha = (f, a) => {
+				const depth = (Math.sin(f) * Math.sin(a) + 1) / 2;
+				return 0.05 + 0.16 * depth;
+			};
+
+			ctx.lineWidth = w < 480 ? 0.6 : 0.8;
+
+			/** Stroke a sampled curve one segment at a time, fading each by depth. */
+			function domeCurve(sample, steps) {
+				let prev = sample(0);
+				for (let i = 1; i <= steps; i++) {
+					const [pt, f, a] = sample(i / steps);
+					ctx.strokeStyle = `rgba(255,255,255,${domeAlpha(f, a).toFixed(3)})`;
+					ctx.beginPath();
+					ctx.moveTo(prev[0][0], prev[0][1]);
+					ctx.lineTo(pt[0], pt[1]);
+					ctx.stroke();
+					prev = [pt, f, a];
+				}
+			}
+
+			// Latitudes, apex to equator. Full circles, so each one crosses from
+			// the far side to the near side and fades across its own width.
+			for (const deg of [15, 31, 47, 63, 79, 90]) {
+				const f = deg * Math.PI / 180;
+				domeCurve((u) => { const a = u * TWO_PI; return [domePt(f, a), f, a]; }, 36);
+			}
+			// Meridians, apex to rim. Twelve half-arcs close the sphere's top.
+			for (let k = 0; k < 12; k++) {
+				const a = (k / 12) * TWO_PI;
+				domeCurve((u) => { const f = u * (Math.PI / 2); return [domePt(f, a), f, a]; }, 14);
+			}
+
+			// Two tall wireframe rectangles standing on the apex.
 			const tx1 = towerBaseX - towerGap / 2 - towerW;
 			const tx2 = towerBaseX + towerGap / 2;
 
@@ -355,7 +483,7 @@
 			// Right tower
 			ctx.strokeRect(tx2, towerBaseY - towerH, towerW, towerH);
 
-			// 3D "9" orientation: aligns with path tangent
+			// 3D "21" orientation: aligns with path tangent
 			const tan = bzd(t, P0, P1, P2);
 			const tangentAngle = Math.atan2(tan[1], tan[0]);
 			const bob = Math.sin(Date.now() * 0.0015) * 0.04;
@@ -365,12 +493,12 @@
 			const nx = -tan[1] / tlen;
 			const ny = tan[0] / tlen;
 			const danceOffset = Math.sin(dancePhase) * level * planeSize * DANCE_HEIGHT;
-			// Only the 9 moves; the drawn arc stays put as the track it flies.
+			// Only the number moves; the drawn arc stays put as the track it flies.
 			const px = pAt[0] + nx * danceOffset;
 			const py = pAt[1] + ny * danceOffset;
 
-			// View angle: how we look at the "9" in its local frame
-			// viewYaw rotates around model Y (up)
+			// View angle: how we look at the number in its local frame
+			// viewYaw rotates around model Y (up), turning model z into screen-width
 			// viewPitch rotates around model X
 			const viewYaw = 1.35;
 			const viewPitch = 0.2;
@@ -396,7 +524,7 @@
 				// After view rotation, x1 is screen-right, y2 is screen-up
 				// z2 is depth (ignored for orthographic)
 
-				// Rotate 2D coordinates to align fuselage with tangent
+				// Rotate 2D coordinates to align the number with the tangent
 				const sx = x1 * cfa - (-y2) * sfa;
 				const sy = x1 * sfa + (-y2) * cfa;
 
@@ -417,7 +545,7 @@
 				ctx.stroke();
 			}
 
-			// Glow at "9" position
+			// Glow at the number's position
 			ctx.beginPath();
 			ctx.arc(pAt[0], pAt[1], w < 480 ? 2 : 3, 0, Math.PI * 2);
 			ctx.fillStyle = 'rgba(255,255,255,0.5)';
@@ -473,7 +601,7 @@
 	let playing = $state(false);
 
 	// ── Audio-reactive motion ──
-	// A tap on the audio element so the 9 can move to what is actually playing.
+	// A tap on the audio element so the number moves to what is actually playing.
 	// Plain `let`, not $state: the draw loop reads these every frame and none of
 	// it belongs in the reactive graph.
 	// Dance feel — the four numbers worth turning.
@@ -508,7 +636,7 @@
 	function initAudioGraph() {
 		if (analyser || !audioEl) return;
 		const AC = window.AudioContext || window.webkitAudioContext;
-		if (!AC) return; // no Web Audio: the 9 rides the track without dancing
+		if (!AC) return; // no Web Audio: the number rides the track without dancing
 
 		let src = null;
 		try {
@@ -525,7 +653,7 @@
 		} catch (err) {
 			// Once the element is routed into the graph it stops playing through
 			// the normal output. If wiring up failed partway, connect the source
-			// straight to the destination — a 9 that does not dance is a much
+			// straight to the destination — a number that does not dance is a much
 			// smaller problem than a play button that plays silence.
 			console.warn('audio graph unavailable, falling back to direct output', err);
 			analyser = null;
@@ -589,12 +717,12 @@
 		if (audioCtx?.state === 'suspended') audioCtx.resume();
 	}
 
-	// Paused mid-track: hold the 9 where it is rather than snapping back.
+	// Paused mid-track: hold the number where it is rather than snapping back.
 	function onPause() {
 		playing = false;
 	}
 
-	// Track finished: the 9 has landed. Hand the arc back to the real countdown.
+	// Track finished: the number has landed. Hand the arc back to the countdown.
 	function onEnded() {
 		playing = false;
 		trackStarted = false;
@@ -1034,7 +1162,7 @@
 	/* ── Hero ── */
 	.hero {
 		position: relative;
-		/* Was overflow:hidden, which is why the 9 came off the top of the page on
+		/* Was overflow:hidden, which is why the number came off the top of the page on
 		   a phone: the hero centres its content, so anything taller than the
 		   viewport overflows in *both* directions and the top half is cut and
 		   unreachable. The canvas is absolutely positioned and sized to this box,
@@ -1276,7 +1404,7 @@
 	.site-footer a {
 		color: rgba(255, 255, 255, 0.72);
 		text-decoration: none;
-		/* The arc and the 9 can pass behind this, so give the text its own
+		/* The arc and the number can pass behind this, so give the text its own
 		   ground rather than relying on the page being black. */
 		text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
 	}
