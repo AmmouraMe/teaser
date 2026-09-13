@@ -333,9 +333,13 @@
 			// keep it there whatever the text above it does.
 			baseY = Math.max(baseY, towerH + 12);
 
-			// Arc endpoint = top third of the right (second) tower
-			const endX = baseX + towerGap / 2 + towerW / 2; // center of right tower
-			const endY = baseY - towerH + towerH / 3;        // top third
+			// Arc endpoint = the bottom-right corner of the tower pair, where the
+			// two towers stand on the planet. It used to be a third of the way
+			// down the right tower, which left the 21 landing in mid-air against
+			// the side of the "11"; the foot of the pair is where a flight path
+			// actually terminates.
+			const endX = baseX + towerGap / 2 + towerW; // right edge of right tower
+			const endY = baseY;                          // the towers' base
 
 			// Anchor the whole arc to the content column, not to the viewport.
 			// Previously the start was derived from `w` while the end tracked the
