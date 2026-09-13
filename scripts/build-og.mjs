@@ -12,10 +12,14 @@
  *
  * So this does not redraw anything. It lifts the real geometry out of
  * `src/routes/+page.svelte` — the glyph builder and the globe block, verbatim —
- * evaluates them against a tiny recording shim that captures line segments
- * instead of painting them, and emits those segments as SVG. Change the hero
- * and re-run this; the card follows. The wording and the launch date come from
+ * evaluates them against a tiny recording shim that captures draw calls instead
+ * of painting them, and emits what it recorded as SVG. Change the hero and
+ * re-run this; the card follows. The wording and the launch date come from
  * `src/lib/seo.js`, which is already the single source of truth for both.
+ *
+ * The card is the page with the track playing — clouds on the globe and the
+ * wireframe lit — because that is the better portrait of it. The shim feeds the
+ * hero's own light-show code a fixed spectrum to get one still frame of it.
  *
  * Needs ImageMagick 7 (`magick`) for the SVG to PNG step. Deliberately NOT part
  * of `bun run build` / `npm run build`: run it when the hero or the date
@@ -77,18 +81,19 @@ const domeDrawSrc = slice(
 	'// Two tall wireframe rectangles standing on the apex.'
 );
 
-// Composition. The planet sits low and centre, cut by the bottom edge the way
-// it is cut by the fold on the page; the glyph comes in high from the left.
-// The text block sits in the upper half and the planet fills the lower one, so
-// the towers top out below the last line of copy rather than growing through
-// it. The planet is cut by the bottom edge the way the page's is cut by the
-// fold — a whole sphere floating in the middle reads as a clip-art globe.
+// Composition, following the hero: the towers stand near the top, the planet
+// hangs from them across the whole frame, and the words read over it the way a
+// title card sits over a photograph. The glyph comes in high from the left.
 const CX = W * 0.5;
-const DOME_R = 230;
-const APEX_Y = 392;
+// The hero's planet now spans the viewport, so the card's spans the card: the
+// radius puts the equator exactly on the bottom edge and the body fills the
+// frame behind the words. A small globe floating in the lower half was a fair
+// portrait of the old hero and is a misleading one of this hero.
+const APEX_Y = 120;
+const DOME_R = H - APEX_Y;
 const TOWER = { towerW: 20, towerH: 92, towerGap: 16 };
-const GLYPH_AT = [210, 120];
-const GLYPH_SIZE = 52;
+const GLYPH_AT = [156, 64];
+const GLYPH_SIZE = 42;
 
 const harness = `
 // The glyph block comes first because it is the one that declares TWO_PI, which
@@ -97,19 +102,55 @@ const harness = `
 ${glyphSrc}
 
 const DOME_TILT = 0.32;
+
+// getPuffSprite() builds its sprite on a canvas. Nothing here paints, so the
+// sprite is never read — it only has to exist for drawImage to be handed
+// something.
+const document = {
+  createElement: () => ({
+    getContext: () => ({
+      createRadialGradient: () => ({ addColorStop() {} }),
+      fillRect() {},
+      set fillStyle(_v) {}
+    })
+  })
+};
+
 ${domeConstSrc}
 
-const segs = [];
-let cur = [0, 0], style = '#fff', lw = 1;
+// The card is the page with the track running: weather on the globe and the
+// wireframe lit. These are the four values the hero's draw loop feeds that
+// code, pinned to one representative frame — a loud one, low end forward.
+const EQ_BARS = 56;
+const eqBars = new Float32Array(EQ_BARS);
+for (let i = 0; i < EQ_BARS; i++) {
+  const f = i / (EQ_BARS - 1);
+  eqBars[i] = Math.max(0, (1 - f) ** 1.5 * (0.62 + 0.38 * Math.sin(i * 1.9 + 0.7)));
+}
+const eqMix = 1;
+const cloudMix = 1;
+const level = 0.42;
+
+// Draw ops in the order the hero issues them, so the clouds land between the
+// surface and the towers on the card exactly as they do on the page.
+const ops = [];
+let cur = [0, 0], style = '#fff', lw = 1, alpha = 1;
+const stack = [];
+const line = (x1, y1, x2, y2) => ops.push(['line', x1, y1, x2, y2, style, lw]);
 const ctx = {
   set strokeStyle(v) { style = v; }, get strokeStyle() { return style; },
   set lineWidth(v) { lw = v; }, get lineWidth() { return lw; },
+  set globalAlpha(v) { alpha = v; }, get globalAlpha() { return alpha; },
+  set globalCompositeOperation(_v) {}, get globalCompositeOperation() { return 'source-over'; },
+  save() { stack.push([style, lw, alpha]); },
+  restore() { const s = stack.pop(); if (s) { style = s[0]; lw = s[1]; alpha = s[2]; } },
   beginPath() {}, moveTo(x, y) { cur = [x, y]; },
-  lineTo(x, y) { segs.push([cur[0], cur[1], x, y, style, lw]); cur = [x, y]; },
+  lineTo(x, y) { line(cur[0], cur[1], x, y); cur = [x, y]; },
   stroke() {},
+  drawImage(_img, x, y, w2, h2) { ops.push(['puff', x + w2 / 2, y + h2 / 2, w2 / 2, h2 / 2, alpha]); },
   strokeRect(x, y, w2, h2) {
-    segs.push([x, y, x + w2, y, style, lw], [x + w2, y, x + w2, y + h2, style, lw],
-              [x + w2, y + h2, x, y + h2, style, lw], [x, y + h2, x, y, style, lw]);
+    line(x, y, x + w2, y); line(x + w2, y, x + w2, y + h2);
+    line(x + w2, y + h2, x, y + h2); line(x, y + h2, x, y);
   }
 };
 
@@ -143,7 +184,7 @@ const glyph = V3.map(([mx, my, mz]) => {
   return [${GLYPH_AT[0]} + x1 * ${GLYPH_SIZE}, ${GLYPH_AT[1]} - y2 * ${GLYPH_SIZE}];
 });
 
-module.exports = { segs, glyph, edges: E3 };
+module.exports = { ops, glyph, edges: E3 };
 `;
 
 const scratch = mkdtempSync(join(tmpdir(), 'ammoura-og-'));
@@ -180,15 +221,36 @@ parts.push(
 		.join(' ')}"/>`
 );
 
-// The planet and towers.
-for (const [x1, y1, x2, y2, st, lwv] of recorded.segs) {
+// The planet, its weather and the towers, in the order the hero drew them.
+// The puff gradient restates the sprite the page stamps; `screen` stands in for
+// the canvas's additive blend, so overlapping puffs still build into a bank
+// rather than flattening into one grey disc.
+parts.push(
+	'<defs><radialGradient id="puff">' +
+		'<stop offset="0" stop-color="#fff" stop-opacity="0.62"/>' +
+		'<stop offset="0.30" stop-color="#f0f8ff" stop-opacity="0.30"/>' +
+		'<stop offset="0.62" stop-color="#d6eaff" stop-opacity="0.09"/>' +
+		'<stop offset="1" stop-color="#c8e2ff" stop-opacity="0"/>' +
+		'</radialGradient></defs>'
+);
+for (const op of recorded.ops) {
+	if (op[0] === 'puff') {
+		const [, cx, cy, rx, ry, a] = op;
+		parts.push(
+			`<ellipse cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(
+				1
+			)}" fill="url(#puff)" opacity="${a.toFixed(3)}" style="mix-blend-mode:screen"/>`
+		);
+		continue;
+	}
+	const [, x1, y1, x2, y2, st, lwv] = op;
 	const m = /rgba\((\d+),(\d+),(\d+),([\d.]+)\)/.exec(st);
 	const col = m ? `rgb(${m[1]},${m[2]},${m[3]})` : '#fff';
-	const op = m ? m[4] : '0.25';
+	const opacity = m ? m[4] : '0.25';
 	parts.push(
 		`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(
 			1
-		)}" stroke="${col}" stroke-opacity="${op}" stroke-width="${(lwv * 1.6).toFixed(2)}"/>`
+		)}" stroke="${col}" stroke-opacity="${opacity}" stroke-width="${(lwv * 1.6).toFixed(2)}"/>`
 	);
 }
 
