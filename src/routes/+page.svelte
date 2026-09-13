@@ -70,6 +70,15 @@
 
 	onMount(() => {
 		if (!flightCanvas) return;
+
+		// Honoured for the rig only. Someone who has asked for less motion still
+		// gets the planet, the weather and the pulse; what they do not get is
+		// sweeping beams and a strobe.
+		const motionQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+		if (motionQuery) {
+			reduceMotion = motionQuery.matches;
+			motionQuery.addEventListener?.('change', (e) => { reduceMotion = e.matches; });
+		}
 		const ctx = flightCanvas.getContext('2d');
 		if (!ctx) return;
 
@@ -394,6 +403,150 @@
 			};
 		}
 
+		// A fixture: where it idles, how fast it swings, how wide the cone, and
+		// which band drives it. Randomised per beam so the rig has a shape —
+		// sixteen identical beams sweeping in lockstep is a windscreen wiper.
+		function makeBeams(seed, count, from, arc) {
+			const rnd = mulberry32(seed);
+			return Array.from({ length: count }, (_, i) => ({
+				base: from + (i / count) * arc + (rnd() - 0.5) * 0.12,
+				speed: 0.55 + rnd() * 1.5,
+				phase: rnd() * TWO_PI,
+				swing: 0.2 + rnd() * 0.5,    // radians either side of base
+				width: 0.009 + rnd() * 0.017, // tip half-width, in beam lengths
+				band: i % 3,
+			}));
+		}
+
+		// Three trusses. The main one hangs off the towers and throws in every
+		// direction; the two wings sit off the bottom corners and rake upward and
+		// inward, so their beams cross the main rig's rather than running beside
+		// them. Crossing beams are most of what makes a rig read as a rig.
+		const RIGS = [
+			{ beams: makeBeams(0xb3a, BEAM_COUNT, 0, TWO_PI), wash: true, at: 'towers' },
+			{ beams: makeBeams(0x51d, 5, -1.5, 1.15), wash: false, at: 'left' },
+			{ beams: makeBeams(0x7c2, 5, -1.95, 1.15), wash: false, at: 'right' },
+		];
+
+		// Gradients are built once per colour in a canonical space — origin at 0,0,
+		// running one unit along +x — and painted under a transform. A gradient's
+		// coordinates are read in user space at paint time, so one object serves
+		// every beam of that colour at every angle and length.
+		//
+		// Worth stating what was measured, because two obvious optimisations are
+		// both wrong here. Rebuilding the gradients per beam per frame: 24fps against
+		// 60 with the rig off. Caching them as below: 41. Rendering the whole rig
+		// into a half-resolution layer on top of that: 41 again — so it was never
+		// fill rate. Stamping each beam as a pre-rendered bitmap instead: 32, because
+		// a rotated non-uniform upscale is worse than shading the gradient. The cache
+		// is the win; the rest is paid for by drawing fewer beams, which is what the
+		// quality guard below does.
+		const beamGradCache = new Map();
+		function beamGrads(ci) {
+			let g = beamGradCache.get(ci);
+			if (g) return g;
+			const c = RIG_COLOURS[ci];
+			const rgb = `${c[0]},${c[1]},${c[2]}`;
+			const cone = ctx.createLinearGradient(0, 0, 1, 0);
+			cone.addColorStop(0, `rgba(${rgb},1)`);
+			cone.addColorStop(0.35, `rgba(${rgb},0.42)`);
+			cone.addColorStop(1, `rgba(${rgb},0)`);
+			const core = ctx.createLinearGradient(0, 0, 1, 0);
+			core.addColorStop(0, `rgba(${rgb},1)`);
+			core.addColorStop(0.5, `rgba(${rgb},0.32)`);
+			core.addColorStop(1, `rgba(${rgb},0)`);
+			const haze = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+			haze.addColorStop(0, `rgba(${rgb},1)`);
+			haze.addColorStop(0.5, `rgba(${rgb},0.34)`);
+			haze.addColorStop(1, `rgba(${rgb},0)`);
+			g = { cone, core, haze };
+			beamGradCache.set(ci, g);
+			return g;
+		}
+
+		/**
+		 * One truss, drawn from its own origin outward.
+		 *
+		 * Beams are flat cones under a linear gradient, composited additively —
+		 * which is what light in haze actually does, and why two crossing beams
+		 * brighten where they meet instead of one covering the other. Each cone
+		 * carries a thin bright core down its axis: without it a beam is a soft
+		 * wedge of glow, and with it the eye reads a shaft of light.
+		 *
+		 * Drawn before the planet, so the wireframe reads on top of the beams the
+		 * way a stage truss reads against its own.
+		 */
+		function drawRig(w, h, ox, oy, beams, wash) {
+			const gain = eqMix * (reduceMotion ? 0 : 1);
+			if (gain < 0.01) return;
+			const len = Math.hypot(w, h) * 1.15;
+			const coreW = w < 480 ? 1.2 : 2.2;
+			// The guard hangs beams, not brightness: a thinner rig is still a rig,
+			// where a dimmer one just looks broken.
+			const hung = Math.max(2, Math.round(beams.length * rigQuality));
+
+			ctx.save();
+			ctx.globalCompositeOperation = 'lighter';
+			ctx.lineCap = 'round';
+
+			// Haze in the colour of the moment. This is what stops the beams reading
+			// as loose triangles on black. Filled as a disc rather than a full-canvas
+			// rect: the gradient is transparent past its own radius anyway, so the
+			// rect was paying for pixels it could not change.
+			const washA = gain * (0.06 + 0.22 * bandHit[0] + 0.07 * bandEnergy[0]);
+			if (wash && washA > 0.004) {
+				ctx.save();
+				ctx.translate(ox, oy);
+				ctx.scale(len * 0.55, len * 0.55);
+				ctx.globalAlpha = washA;
+				ctx.fillStyle = beamGrads(rigColour).haze;
+				ctx.beginPath();
+				ctx.arc(0, 0, 1, 0, TWO_PI);
+				ctx.fill();
+				ctx.restore();
+			}
+
+			for (let i = 0; i < hung; i++) {
+				const b = beams[i];
+				const g = beamGrads(i % 2 ? (rigColour + 2) % RIG_COLOURS.length : rigColour);
+				// Idle sweep, plus a throw on the kick that moves the whole truss to a
+				// new spread at once. rigSnap decays, so the beams ease back into their
+				// sweep rather than staying thrown.
+				const ang = b.base
+					+ Math.sin(rigPhase * b.speed + b.phase) * b.swing
+					+ rigSnap * b.swing * 1.9 * (i % 2 ? 1 : -1);
+				const drive = 0.3 + 0.7 * bandEnergy[b.band] + 0.7 * bandHit[b.band];
+				const a = gain * drive * 0.22;
+				if (a < 0.004) continue;
+				const halfW = b.width * (0.55 + 0.8 * drive);
+
+				ctx.save();
+				ctx.translate(ox, oy);
+				ctx.rotate(ang);
+				ctx.scale(len, len);
+				ctx.globalAlpha = a;
+				ctx.fillStyle = g.cone;
+				ctx.beginPath();
+				ctx.moveTo(0, 0);
+				ctx.lineTo(1, halfW);
+				ctx.lineTo(1, -halfW);
+				ctx.closePath();
+				ctx.fill();
+
+				// The core. Same axis, far brighter, a couple of pixels wide — the
+				// width is divided back out of the scale that made the beam.
+				ctx.globalAlpha = Math.min(0.95, a * 2.8);
+				ctx.strokeStyle = g.core;
+				ctx.lineWidth = (coreW * (0.6 + 0.9 * drive)) / len;
+				ctx.beginPath();
+				ctx.moveTo(0, 0);
+				ctx.lineTo(1, 0);
+				ctx.stroke();
+				ctx.restore();
+			}
+			ctx.restore();
+		}
+
 		function getArcPoints(w, h) {
 			const { towerW, towerH, towerGap } = getTowerDims(w);
 
@@ -486,6 +639,19 @@
 			eqMix += (eqTarget - eqMix) * (eqTarget > eqMix ? EQ_FADE_IN : EQ_FADE_OUT);
 			// The weather has its own, slower fade than the arc's spectrum.
 			cloudMix += (eqTarget - cloudMix) * (eqTarget > cloudMix ? CLOUD_FADE_IN : CLOUD_FADE_OUT);
+
+			// The lighting desk, then the beams — before everything else, so the
+			// arc, the planet and the glyph all read against them.
+			adaptRig(dt);
+			updateRig(nowMs, dt, playing);
+			{
+				const { towerH } = getTowerDims(w);
+				for (const rig of RIGS) {
+					const ox = rig.at === 'towers' ? towerBaseX : rig.at === 'left' ? w * 0.06 : w * 0.94;
+					const oy = rig.at === 'towers' ? towerBaseY - towerH : h * 1.04;
+					drawRig(w, h, ox, oy, rig.beams, rig.wash);
+				}
+			}
 
 			// Past path (dotted)
 			ctx.save();
@@ -602,7 +768,7 @@
 				}
 			}
 
-			ctx.lineWidth = w < 480 ? 0.6 : 0.8;
+			ctx.lineWidth = (w < 480 ? 0.6 : 0.8) * (1 + 0.5 * eqMix);
 
 			// Tessellation scales with the radius. A fixed 36 segments was smooth
 			// on a 150px ball and visibly polygonal once the globe spans the
@@ -625,14 +791,21 @@
 				base[2] + (hot[2] - base[2]) * u,
 			];
 
+			// The wireframe is a fixture too: the grid takes the colour the desk is
+			// on, so the planet changes with the room rather than staying blue
+			// while everything around it turns magenta.
+			const rigHot = reduceMotion ? BEAT_NEAR : RIG_COLOURS[rigColour];
+
 			// Latitudes, apex to equator. Circles of constant f, so the spin does
-			// not move them — only the meridians and the coastlines turn.
-			const kick = eqMix * level;
-			const latNear = mix3(OCEAN_NEAR, BEAT_NEAR, kick * 0.7);
+			// not move them — only the meridians and the coastlines turn. The
+			// kick is what they ride, so they flare as one on the beat.
+			const kick = eqMix * Math.max(level, bandHit[0]);
+			const latNear = mix3(OCEAN_NEAR, rigHot, Math.min(1, kick * 1.1));
 			for (const deg of [15, 31, 47, 63, 79, 90]) {
 				const f = deg * Math.PI / 180;
 				domeCurve((u) => { const a = u * TWO_PI; return [domePt(f, a), f, a]; },
-					latSteps, OCEAN_FAR, latNear, 0.12 + 0.10 * kick, 0.40 + 0.30 * kick);
+					latSteps, OCEAN_FAR, latNear, 0.12 + 0.10 * eqMix + 0.12 * kick,
+					0.40 + 0.22 * eqMix + 0.34 * kick);
 			}
 			// Meridians, apex to rim. Twelve half-arcs close the sphere's top —
 			// and, with the track running, twelve bands of the spectrum. The
@@ -640,10 +813,17 @@
 			// so the lit bands ride the planet as it turns.
 			for (let k = 0; k < 12; k++) {
 				const a = (k / 12) * TWO_PI + spin;
-				const band = eqMix * eqBars[Math.min(EQ_BARS - 1, Math.round((k / 12) * (EQ_BARS - 1)))];
-				const near = mix3(OCEAN_NEAR, BEAT_NEAR, Math.min(1, band * 1.6));
+				// Each meridian takes its own slice of the spectrum, and a chase
+				// runs around the twelve of them in time with the sweep — so the
+				// grid has movement of its own even through a flat bar.
+				const chase = 0.5 + 0.5 * Math.cos(rigPhase * 1.4 - (k / 12) * TWO_PI);
+				const band = eqMix
+					* eqBars[Math.min(EQ_BARS - 1, Math.round((k / 12) * (EQ_BARS - 1)))]
+					* (reduceMotion ? 1 : 0.35 + 0.9 * chase);
+				const near = mix3(OCEAN_NEAR, rigHot, Math.min(1, band * 2.2));
 				domeCurve((u) => { const f = u * (Math.PI / 2); return [domePt(f, a), f, a]; },
-					merSteps, OCEAN_FAR, near, 0.12 + 0.22 * band, 0.40 + 0.45 * band);
+					merSteps, OCEAN_FAR, near, 0.12 + 0.10 * eqMix + 0.26 * band,
+					0.40 + 0.22 * eqMix + 0.5 * band);
 			}
 
 			// The limb: where the sphere turns away from us, which in this
@@ -652,8 +832,12 @@
 			// globe keeps a lit edge no matter where the rotation has got to.
 			// On the beat the limb is also the atmosphere lighting up: the one
 			// edge that reads at a glance, so the kick lands there hardest.
-			ctx.lineWidth = (w < 480 ? 0.8 : 1.1) * (1 + 0.9 * kick);
-			ctx.strokeStyle = `rgba(${ATMO_RGB},${(0.5 + 0.45 * kick).toFixed(3)})`;
+			ctx.lineWidth = (w < 480 ? 0.8 : 1.1) * (1 + 1.6 * kick);
+			{
+				const atmo = mix3([128, 206, 255], rigHot, Math.min(1, kick * 1.3));
+				ctx.strokeStyle = `rgba(${Math.round(atmo[0])},${Math.round(atmo[1])},` +
+					`${Math.round(atmo[2])},${(0.5 + 0.5 * kick).toFixed(3)})`;
+			}
 			ctx.beginPath();
 			for (const a of [0, Math.PI]) {
 				for (let i = 0; i <= merSteps; i++) {
@@ -694,7 +878,8 @@
 						const u = s / coastStep;
 						const [f, a] = coastFA(lat0 + (lat1 - lat0) * u, lon0 + (lon1 - lon0) * u);
 						const pt = domePt(f, a);
-						ctx.strokeStyle = shade(LAND_FAR, LAND_NEAR, depthAt(f, a), 0.18, 0.55);
+						ctx.strokeStyle = shade(LAND_FAR, LAND_NEAR, depthAt(f, a),
+							0.18 + 0.16 * eqMix, 0.55 + 0.3 * eqMix);
 						ctx.beginPath();
 						ctx.moveTo(prev[0], prev[1]);
 						ctx.lineTo(pt[0], pt[1]);
@@ -746,6 +931,19 @@
 						ctx.drawImage(sprite, x - rx, y - ry, rx * 2, ry * 2);
 					}
 				}
+				ctx.restore();
+			}
+
+			// The strobe, over the planet and its weather but under the towers and
+			// the glyph, so the two white shapes stay readable through it. Gated
+			// by the kick detector, which caps it under three a second, and held
+			// to FLASH_PEAK — over a black hero that is already a hard flash.
+			if (flash > 0.01 && !reduceMotion) {
+				const c = RIG_COLOURS[rigColour];
+				ctx.save();
+				ctx.globalCompositeOperation = 'lighter';
+				ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${(flash * FLASH_PEAK * eqMix).toFixed(3)})`;
+				ctx.fillRect(0, 0, w, h);
 				ctx.restore();
 			}
 
@@ -901,6 +1099,45 @@
 	const EQ_FADE_IN = 0.05; // how fast the whole effect appears on play
 	const EQ_FADE_OUT = 0.03; // and clears on pause
 
+	// ── The rig ──
+	// Concert lighting, hung off the towers and pointed at everything. A single
+	// smoothed loudness was enough to make the 21 bob; it is nowhere near enough
+	// to run a light show, because a show is made of *events* — a kick lands, the
+	// colour changes, the beams snap somewhere new. So the rig runs its own onset
+	// detection, per band, and the fixtures are driven by hits rather than by a
+	// level.
+	//
+	// Three bands, three detectors: a kick, a snare and a hat should not all move
+	// the same fixture. Ranges are analyser bins, 128 of them over ~22kHz.
+	const RIG_BANDS = [
+		{ lo: 1, hi: 6 },   // kick and low bass
+		{ lo: 6, hi: 26 },  // body, snare, the front of the mix
+		{ lo: 26, hi: 78 }, // hats and air
+	];
+	// How far above its own rolling average a band has to jump to count as a hit,
+	// and the minimum gap between hits. The low band is gated hardest: it drives
+	// the colour changes and the flash, and nothing ruins a show like a strobe
+	// with no rhythm. The gate is also the safety limit — 340ms is under three
+	// flashes a second.
+	const RIG_SENS = [1.32, 1.22, 1.16];
+	const RIG_GATE = [340, 190, 110];
+	// Colours a lighting desk would actually pick: saturated, few, and swapped on
+	// the beat rather than cycled continuously through a hue wheel, which always
+	// reads as a screensaver.
+	const RIG_COLOURS = [
+		[255, 46, 124],  // magenta
+		[64, 208, 255],  // cyan
+		[255, 176, 48],  // amber
+		[126, 255, 138], // green
+		[158, 96, 255],  // violet
+		[236, 248, 255], // white
+	];
+	const BEAM_COUNT = 13;
+	// Peak alpha of the strobe wash. Deliberately low: over a black hero even a
+	// gentle wash reads as a flash, and this sits behind the copy at a rate the
+	// gate keeps under three a second.
+	const FLASH_PEAK = 0.1;
+
 	let audioCtx = null;
 	let analyser = null;
 	let freqData = null;
@@ -910,6 +1147,80 @@
 	const eqBars = new Float32Array(EQ_BARS);
 	let dancePhase = 0;
 	let lastFrameAt = 0;
+
+	// Rig state. Energy now, energy on average, and a decaying impulse per band.
+	const bandEnergy = [0, 0, 0];
+	const bandAvg = [0, 0, 0];
+	const bandHit = [0, 0, 0];
+	const lastHitAt = [0, 0, 0];
+	let rigPhase = 0;   // drives the sweep; runs faster when the track is busy
+	let rigColour = 0;  // index into RIG_COLOURS, advanced on the kick
+	let rigSnap = 0;    // 0..1, how recently the beams were thrown somewhere new
+	let flash = 0;      // strobe envelope
+	// A show that flashes and sweeps is exactly what this setting is for. The
+	// globe keeps its weather and its gentle pulse; the rig does not come on.
+	let reduceMotion = false;
+
+	// How much of the rig is hung, 0..1. A full truss over a full-width canvas is
+	// a lot of additive drawing, and how much a machine can take is not something
+	// this page can know in advance — a phone, a software rasteriser and a
+	// desktop GPU are three different budgets. So it measures instead: frame time
+	// is smoothed, and beams come down when frames run long and go back up when
+	// they do not. The floor keeps a recognisable rig on the slowest device.
+	let frameMs = 16;
+	let rigQuality = 1;
+	const RIG_Q_FLOOR = 0.35;
+	function adaptRig(dt) {
+		frameMs += (dt * 1000 - frameMs) * 0.05;
+		if (frameMs > 21 && rigQuality > RIG_Q_FLOOR) rigQuality = Math.max(RIG_Q_FLOOR, rigQuality - 0.02);
+		else if (frameMs < 15 && rigQuality < 1) rigQuality = Math.min(1, rigQuality + 0.004);
+	}
+
+	/**
+	 * Run the lighting desk for one frame.
+	 *
+	 * Reads whatever readLevel() last pulled into freqData, so the rig costs no
+	 * extra analyser call. Everything decays by dt rather than per frame, so the
+	 * show runs at the same speed on a 60Hz and a 144Hz display.
+	 */
+	function updateRig(nowMs, dt, active) {
+		const decay = (v, per) => v * Math.pow(per, dt);
+		if (!active || !freqData || reduceMotion) {
+			for (let b = 0; b < 3; b++) { bandHit[b] = decay(bandHit[b], 0.02); bandEnergy[b] *= 0.9; }
+			flash = decay(flash, 0.0005);
+			return;
+		}
+		for (let b = 0; b < 3; b++) {
+			const { lo, hi } = RIG_BANDS[b];
+			const top = Math.min(hi, freqData.length);
+			let sum = 0;
+			for (let i = lo; i < top; i++) sum += freqData[i];
+			const e = top > lo ? sum / ((top - lo) * 255) : 0;
+			bandEnergy[b] = e;
+			// The threshold follows the mix. A fixed one fires every frame in a
+			// loud passage and never fires in a quiet one; this fires on the
+			// transient either way, which is what a beat is.
+			bandAvg[b] += (e - bandAvg[b]) * 0.05;
+			if (e > bandAvg[b] * RIG_SENS[b] + 0.03 && nowMs - lastHitAt[b] > RIG_GATE[b]) {
+				lastHitAt[b] = nowMs;
+				bandHit[b] = 1;
+				if (b === 0) {
+					// The kick runs the desk: new colour, new beam positions, and
+					// the wash behind the planet.
+					rigColour = (rigColour + 1 + (Math.random() * 2 | 0)) % RIG_COLOURS.length;
+					rigSnap = 1;
+					flash = Math.min(1, flash + 0.55 + 0.45 * e);
+				}
+			} else {
+				bandHit[b] = decay(bandHit[b], 0.02);
+			}
+		}
+		// The sweep speeds up with the front of the mix, so the beams idle through
+		// a quiet bar and race through a loud one.
+		rigPhase += dt * (0.9 + 4.2 * bandEnergy[1] + 2.2 * bandHit[1]);
+		rigSnap = decay(rigSnap, 0.004);
+		flash = decay(flash, 0.0006);
+	}
 
 	function initAudioGraph() {
 		if (analyser || !audioEl) return;

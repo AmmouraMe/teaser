@@ -80,6 +80,12 @@ const domeDrawSrc = slice(
 	'const domeCX = towerBaseX;',
 	'// Two tall wireframe rectangles standing on the apex.'
 );
+// The lighting rig's fixtures — where each beam idles, how wide its cone is.
+// Only the geometry is lifted; the card paints its own beams as SVG, the same
+// way it paints the planet's recorded strokes.
+const rigSrc = slice(page, '// A fixture: where it idles', '// Gradients are built once per colour');
+// The desk's own constants — the palette and how many beams are hung.
+const rigConstSrc = slice(page, '// ── The rig ──', '\tlet audioCtx = null;');
 
 // Composition, following the hero: the towers stand near the top, the planet
 // hangs from them across the whole frame, and the words read over it the way a
@@ -130,6 +136,21 @@ for (let i = 0; i < EQ_BARS; i++) {
 const eqMix = 1;
 const cloudMix = 1;
 const level = 0.42;
+
+${rigConstSrc}
+
+// The lighting desk, held at one moment. Cyan keeps the card in the page's own
+// cool register while still showing that the grid takes the rig's colour.
+const reduceMotion = false;
+const rigColour = 1;
+const rigPhase = 2.1;
+const rigSnap = 0;
+const bandEnergy = [0.55, 0.48, 0.3];
+const bandHit = [0.8, 0.35, 0.2];
+// No strobe on a still: a frozen flash is just a washed-out card.
+const flash = 0;
+
+${rigSrc}
 
 // Draw ops in the order the hero issues them, so the clouds land between the
 // surface and the towers on the card exactly as they do on the page.
@@ -184,7 +205,7 @@ const glyph = V3.map(([mx, my, mz]) => {
   return [${GLYPH_AT[0]} + x1 * ${GLYPH_SIZE}, ${GLYPH_AT[1]} - y2 * ${GLYPH_SIZE}];
 });
 
-module.exports = { ops, glyph, edges: E3 };
+module.exports = { ops, glyph, edges: E3, rigs: RIGS, colours: RIG_COLOURS, rigColour };
 `;
 
 const scratch = mkdtempSync(join(tmpdir(), 'ammoura-og-'));
@@ -220,6 +241,63 @@ parts.push(
 		.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`)
 		.join(' ')}"/>`
 );
+
+// The rig. The hero paints its beams onto canvas under a transform, which the
+// recording shim has no way to capture, so the card paints its own — from the
+// page's own fixture list, at the same angles the page would be at for this
+// rigPhase. Geometry from the hero, painting by the card, which is the same
+// deal the planet's strokes get.
+//
+// Drawn before the planet, as on the page.
+{
+	const rigLen = Math.hypot(W, H) * 1.15;
+	const { rigs, colours, rigColour: ci } = recorded;
+	const towerTopY = APEX_Y - TOWER.towerH;
+	let gid = 0;
+	for (const rig of rigs) {
+		const ox = rig.at === 'towers' ? CX : rig.at === 'left' ? W * 0.06 : W * 0.94;
+		const oy = rig.at === 'towers' ? towerTopY : H * 1.04;
+		if (rig.wash) {
+			const c = colours[ci];
+			parts.push(
+				`<defs><radialGradient id="haze"><stop offset="0" stop-color="rgb(${c})"` +
+					` stop-opacity="0.22"/><stop offset="0.5" stop-color="rgb(${c})"` +
+					` stop-opacity="0.075"/><stop offset="1" stop-color="rgb(${c})"` +
+					` stop-opacity="0"/></radialGradient></defs>` +
+					`<circle cx="${ox}" cy="${oy}" r="${(rigLen * 0.55).toFixed(0)}" fill="url(#haze)"/>`
+			);
+		}
+		rig.beams.forEach((b, i) => {
+			const c = colours[i % 2 ? (ci + 2) % colours.length : ci];
+			// The still's sweep: the same expression the page evaluates, at the
+			// rigPhase the harness was pinned to.
+			const ang = b.base + Math.sin(2.1 * b.speed + b.phase) * b.swing;
+			const drive = 0.3 + 0.7 * 0.5;
+			const a = drive * 0.22;
+			const half = rigLen * b.width * (0.55 + 0.8 * drive);
+			const dx = Math.cos(ang);
+			const dy = Math.sin(ang);
+			const tx = ox + dx * rigLen;
+			const ty = oy + dy * rigLen;
+			const id = `bm${gid++}`;
+			parts.push(
+				`<defs><linearGradient id="${id}" gradientUnits="userSpaceOnUse"` +
+					` x1="${ox.toFixed(1)}" y1="${oy.toFixed(1)}" x2="${tx.toFixed(1)}" y2="${ty.toFixed(1)}">` +
+					`<stop offset="0" stop-color="rgb(${c})" stop-opacity="1"/>` +
+					`<stop offset="0.35" stop-color="rgb(${c})" stop-opacity="0.42"/>` +
+					`<stop offset="1" stop-color="rgb(${c})" stop-opacity="0"/>` +
+					`</linearGradient></defs>` +
+					`<polygon points="${ox.toFixed(1)},${oy.toFixed(1)} ` +
+					`${(tx - dy * half).toFixed(1)},${(ty + dx * half).toFixed(1)} ` +
+					`${(tx + dy * half).toFixed(1)},${(ty - dx * half).toFixed(1)}"` +
+					` fill="url(#${id})" opacity="${a.toFixed(3)}" style="mix-blend-mode:screen"/>` +
+					`<line x1="${ox.toFixed(1)}" y1="${oy.toFixed(1)}" x2="${tx.toFixed(1)}" y2="${ty.toFixed(1)}"` +
+					` stroke="url(#${id})" stroke-width="2.4" opacity="${Math.min(0.95, a * 2.8).toFixed(3)}"` +
+					` style="mix-blend-mode:screen"/>`
+			);
+		});
+	}
+}
 
 // The planet, its weather and the towers, in the order the hero drew them.
 // The puff gradient restates the sprite the page stamps; `screen` stands in for
