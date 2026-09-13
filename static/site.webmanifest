@@ -1,0 +1,24 @@
+{
+	"name": "Ammoura",
+	"short_name": "Ammoura",
+	"description": "A website and online store builder for creators and small teams.",
+	"start_url": "/",
+	"scope": "/",
+	"display": "standalone",
+	"background_color": "#000000",
+	"theme_color": "#000000",
+	"icons": [
+		{
+			"src": "/icon-192.png",
+			"sizes": "192x192",
+			"type": "image/png",
+			"purpose": "any"
+		},
+		{
+			"src": "/icon-512.png",
+			"sizes": "512x512",
+			"type": "image/png",
+			"purpose": "any"
+		}
+	]
+}
