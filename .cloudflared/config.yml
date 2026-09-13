@@ -1,5 +1,5 @@
 tunnel: ammoura-dev
-credentials-file: C:\Users\monag\.cloudflared\22fe58c9-1857-4a1b-a2c3-ea991081c542.json
+credentials-file: /home/davis9001/.cloudflared/22fe58c9-1857-4a1b-a2c3-ea991081c542.json
 
 ingress:
   - hostname: ammoura-dev.starspace.group

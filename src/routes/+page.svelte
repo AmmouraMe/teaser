@@ -248,34 +248,80 @@
 		// far above the dome we appear to be standing.
 		const DOME_TILT = 0.32;
 
-		// Tower and dome dimensions (responsive). The dome lives here rather than
-		// in draw() because the layout has to reserve room for it before it knows
-		// where the towers go — the apex is the towers' base, and the dome hangs
-		// below it, so `domeDrop` is the vertical room it needs under the apex.
+		// Ocean for the graticule, land for the coastlines — each a ramp rather
+		// than one colour. The far side of the sphere sits at the dark end and
+		// the near side at the bright end, so the body has real colour range
+		// across its own width instead of one flat tint fading out.
+		const OCEAN_FAR = [34, 62, 132];
+		const OCEAN_NEAR = [96, 184, 250];
+		const LAND_FAR = [44, 110, 76];
+		const LAND_NEAR = [132, 226, 136];
+		// The lit limb. Brighter than either, and it does not fade, so the globe
+		// keeps a hard edge against the background.
+		const ATMO_RGB = '128,206,255';
+
+		// One revolution, in milliseconds. Slow on purpose: the countdown is what
+		// the eye is meant to land on, and a fast globe steals it.
+		const GLOBE_SPIN_MS = 90000;
+
+		// Which longitude faces the viewer. -30 is mid-Atlantic, which puts the
+		// Americas on the left of the globe and Europe and Africa on the right —
+		// the view that reads as "Earth" fastest at this size.
+		const GLOBE_LON0 = -30;
+
+		// Northern-hemisphere coastlines, flat [lat, lon, lat, lon, …] rings.
+		// Deliberately coarse: the globe is barely 100px across, so anything
+		// finer than this turns to mush, and every extra vertex is a stroke on
+		// every frame. Only the north is here because a hemisphere cuts at the
+		// equator anyway.
+		const COASTLINES = [
+			// North America
+			[70,-160, 70,-130, 69,-100, 73,-80, 60,-64, 47,-52, 45,-67, 35,-76,
+			 25,-80, 30,-94, 20,-97, 16,-95, 20,-105, 32,-117, 48,-125, 60,-140,
+			 60,-165, 70,-160],
+			// Greenland
+			[83,-30, 76,-20, 70,-22, 60,-43, 65,-53, 76,-68, 82,-60, 83,-30],
+			// Northern South America, down to the cut
+			[12,-72, 11,-62, 8,-50, 0,-50, 0,-79, 12,-72],
+			// Eurasia
+			[36,-6, 43,-9, 48,-5, 52,4, 58,5, 62,5, 71,25, 69,60, 73,80, 75,100,
+			 73,140, 69,170, 62,179, 60,162, 54,160, 53,141, 45,135, 39,122,
+			 31,122, 22,114, 21,107, 13,100, 16,95, 21,89, 15,80, 8,77, 23,68,
+			 25,57, 12,44, 30,33, 36,36, 40,26, 41,29, 45,14, 43,5, 36,-6],
+			// Africa, north of the equator
+			[37,10, 32,22, 31,32, 12,43, 0,42, 0,9, 5,-5, 15,-17, 28,-13, 35,-6, 37,10],
+			// British Isles
+			[58,-5, 54,-2, 51,1, 50,-5, 55,-6, 58,-5],
+		];
+
+		// Tower and dome dimensions (responsive). The planet is deliberately far
+		// bigger than the towers now: its apex is their base, and the body of it
+		// hangs down behind the tagline and the headline. The canvas sits under
+		// the copy in the stacking order, so no room is reserved for it — the
+		// text is meant to read over the planet, the way a title card sits over
+		// a photograph.
 		function getTowerDims(w) {
-			const domeR = w < 480 ? 27 : 38;
 			return {
 				towerW: w < 480 ? 8 : 12,
 				towerH: w < 480 ? 45 : 65,
 				towerGap: w < 480 ? 6 : 10,
-				domeR,
-				domeDrop: domeR * (1 + DOME_TILT),
+				domeR: w < 480 ? 96 : 150,
 			};
 		}
 
 		function getArcPoints(w, h) {
-			const { towerW, towerH, towerGap, domeDrop } = getTowerDims(w);
+			const { towerW, towerH, towerGap } = getTowerDims(w);
 
-			// Tower base — which is also the dome's apex: centered horizontally,
-			// and high enough above the tagline that the dome's near rim clears
-			// the words rather than being drawn across them.
+			// Tower base — which is also the planet's apex: centered horizontally,
+			// and just above the tagline. The planet's body falls from here down
+			// behind the words rather than being kept clear of them.
 			let baseX = w * 0.5;
 			let baseY = h * 0.38;
 			if (taglineEl) {
 				const rect = taglineEl.getBoundingClientRect();
 				const canvasRect = flightCanvas.getBoundingClientRect();
 				baseX = rect.left + rect.width / 2 - canvasRect.left;
-				baseY = rect.top - canvasRect.top - (w < 480 ? 14 : 22) - domeDrop;
+				baseY = rect.top - canvasRect.top - (w < 480 ? 14 : 22);
 			}
 
 			// Everything here is drawn *upward* from baseY, and baseY tracks the
@@ -438,20 +484,25 @@
 				domeCX + domeR * Math.sin(f) * Math.cos(a),
 				domeCY - domeR * Math.cos(f) + DOME_TILT * domeR * Math.sin(f) * Math.sin(a),
 			];
-			// Depth 1 is the nearest rim, 0 the furthest.
-			const domeAlpha = (f, a) => {
-				const depth = (Math.sin(f) * Math.sin(a) + 1) / 2;
-				return 0.05 + 0.16 * depth;
-			};
+			// Depth 1 is the nearest point of the sphere, 0 the furthest.
+			const depthAt = (f, a) => (Math.sin(f) * Math.sin(a) + 1) / 2;
+			/** Walk a colour ramp and set an alpha, both from the same depth. */
+			const shade = (far, near, d, a0, a1) =>
+				`rgba(${Math.round(far[0] + (near[0] - far[0]) * d)},` +
+				`${Math.round(far[1] + (near[1] - far[1]) * d)},` +
+				`${Math.round(far[2] + (near[2] - far[2]) * d)},` +
+				`${(a0 + a1 * d).toFixed(3)})`;
 
-			ctx.lineWidth = w < 480 ? 0.6 : 0.8;
+			// One turn per GLOBE_SPIN_MS, off the wall clock, so the loop is
+			// seamless and does not drift with frame rate.
+			const spin = ((nowMs % GLOBE_SPIN_MS) / GLOBE_SPIN_MS) * TWO_PI;
 
-			/** Stroke a sampled curve one segment at a time, fading each by depth. */
-			function domeCurve(sample, steps) {
+			/** Stroke a sampled curve one segment at a time, shaded by depth. */
+			function domeCurve(sample, steps, far, near, a0, a1) {
 				let prev = sample(0);
 				for (let i = 1; i <= steps; i++) {
 					const [pt, f, a] = sample(i / steps);
-					ctx.strokeStyle = `rgba(255,255,255,${domeAlpha(f, a).toFixed(3)})`;
+					ctx.strokeStyle = shade(far, near, depthAt(f, a), a0, a1);
 					ctx.beginPath();
 					ctx.moveTo(prev[0][0], prev[0][1]);
 					ctx.lineTo(pt[0], pt[1]);
@@ -460,16 +511,64 @@
 				}
 			}
 
-			// Latitudes, apex to equator. Full circles, so each one crosses from
-			// the far side to the near side and fades across its own width.
+			ctx.lineWidth = w < 480 ? 0.6 : 0.8;
+
+			// Latitudes, apex to equator. Circles of constant f, so the spin does
+			// not move them — only the meridians and the coastlines turn.
 			for (const deg of [15, 31, 47, 63, 79, 90]) {
 				const f = deg * Math.PI / 180;
-				domeCurve((u) => { const a = u * TWO_PI; return [domePt(f, a), f, a]; }, 36);
+				domeCurve((u) => { const a = u * TWO_PI; return [domePt(f, a), f, a]; },
+					36, OCEAN_FAR, OCEAN_NEAR, 0.12, 0.40);
 			}
 			// Meridians, apex to rim. Twelve half-arcs close the sphere's top.
 			for (let k = 0; k < 12; k++) {
-				const a = (k / 12) * TWO_PI;
-				domeCurve((u) => { const f = u * (Math.PI / 2); return [domePt(f, a), f, a]; }, 14);
+				const a = (k / 12) * TWO_PI + spin;
+				domeCurve((u) => { const f = u * (Math.PI / 2); return [domePt(f, a), f, a]; },
+					14, OCEAN_FAR, OCEAN_NEAR, 0.12, 0.40);
+			}
+
+			// The limb: where the sphere turns away from us, which in this
+			// projection is exactly the two meridians at a = 0 and a = PI. They
+			// are drawn explicitly rather than left to the spinning grid, so the
+			// globe keeps a lit edge no matter where the rotation has got to.
+			ctx.lineWidth = w < 480 ? 0.8 : 1.1;
+			ctx.strokeStyle = `rgba(${ATMO_RGB},0.5)`;
+			ctx.beginPath();
+			for (const a of [0, Math.PI]) {
+				for (let i = 0; i <= 20; i++) {
+					const pt = domePt((i / 20) * (Math.PI / 2), a);
+					if (i === 0) ctx.moveTo(pt[0], pt[1]); else ctx.lineTo(pt[0], pt[1]);
+				}
+			}
+			ctx.stroke();
+
+			// Coastlines, on the same sphere as the graticule. Latitude is the
+			// polar angle measured from the pole, so f = 90 - lat, and longitude
+			// is offset so GLOBE_LON0 faces the viewer at a = 90 degrees.
+			//
+			// They ride the same depth fade as the grid, so land on the far side
+			// shows through faintly rather than being hidden — which is what sells
+			// a wireframe globe as a globe rather than a printed disc.
+			ctx.lineWidth = w < 480 ? 0.8 : 1.1;
+			for (const ring of COASTLINES) {
+				let prev = null;
+				for (let i = 0; i < ring.length; i += 2) {
+					const lat = ring[i];
+					const f = (90 - lat) * Math.PI / 180;
+					const a = (ring[i + 1] - GLOBE_LON0) * Math.PI / 180 + Math.PI / 2 + spin;
+					const pt = domePt(f, a);
+					// Below the equator there is no dome to draw on; break the run
+					// rather than letting it cut a chord across the rim.
+					if (lat < 0) { prev = null; continue; }
+					if (prev) {
+						ctx.strokeStyle = shade(LAND_FAR, LAND_NEAR, depthAt(f, a), 0.18, 0.55);
+						ctx.beginPath();
+						ctx.moveTo(prev[0], prev[1]);
+						ctx.lineTo(pt[0], pt[1]);
+						ctx.stroke();
+					}
+					prev = pt;
+				}
 			}
 
 			// Two tall wireframe rectangles standing on the apex.
@@ -1188,6 +1287,18 @@
 		width: 100%;
 		height: 100%;
 		pointer-events: none;
+	}
+
+	/* The planet now passes behind the whole hero block, so the copy needs its
+	   own ground rather than relying on the page being black — the same trick
+	   the footer links already use, applied to everything the globe crosses. */
+	.tagline,
+	h1,
+	.hint,
+	.countdown {
+		text-shadow:
+			0 0 6px rgba(6, 7, 9, 0.92),
+			0 1px 3px rgba(6, 7, 9, 0.8);
 	}
 
 	.tagline {
