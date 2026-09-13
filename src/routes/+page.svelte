@@ -270,10 +270,12 @@
 		const GLOBE_LON0 = -30;
 
 		// Northern-hemisphere coastlines, flat [lat, lon, lat, lon, …] rings.
-		// Deliberately coarse: the globe is barely 100px across, so anything
-		// finer than this turns to mush, and every extra vertex is a stroke on
-		// every frame. Only the north is here because a hemisphere cuts at the
-		// equator anyway.
+		// Coarse on purpose — every vertex is a stroke on every frame, and these
+		// read as continents at a glance, which is the job. The draw walks each
+		// leg in lat/lon so the line lies on the sphere however big it gets; what
+		// it cannot add is detail that is not in the data, so at viewport width
+		// the shapes stay angular. Only the north is here because a hemisphere
+		// cuts at the equator anyway.
 		const COASTLINES = [
 			// North America
 			[70,-160, 70,-130, 69,-100, 73,-80, 60,-64, 47,-52, 45,-67, 35,-76,
@@ -305,7 +307,10 @@
 				towerW: w < 480 ? 8 : 12,
 				towerH: w < 480 ? 45 : 65,
 				towerGap: w < 480 ? 6 : 10,
-				domeR: w < 480 ? 96 : 150,
+				// The planet spans the viewport: radius is half the canvas width,
+				// so the equator meets both edges exactly. The apex still sits on
+				// the towers, so the body hangs down behind the whole hero.
+				domeR: w / 2,
 			};
 		}
 
@@ -517,18 +522,25 @@
 
 			ctx.lineWidth = w < 480 ? 0.6 : 0.8;
 
+			// Tessellation scales with the radius. A fixed 36 segments was smooth
+			// on a 150px ball and visibly polygonal once the globe spans the
+			// viewport, so the step count follows domeR — one segment per ~8px of
+			// radius keeps the flat-to-arc error under a pixel at any width.
+			const latSteps = Math.max(36, Math.round(domeR / 8));
+			const merSteps = Math.max(14, Math.round(latSteps / 4));
+
 			// Latitudes, apex to equator. Circles of constant f, so the spin does
 			// not move them — only the meridians and the coastlines turn.
 			for (const deg of [15, 31, 47, 63, 79, 90]) {
 				const f = deg * Math.PI / 180;
 				domeCurve((u) => { const a = u * TWO_PI; return [domePt(f, a), f, a]; },
-					36, OCEAN_FAR, OCEAN_NEAR, 0.12, 0.40);
+					latSteps, OCEAN_FAR, OCEAN_NEAR, 0.12, 0.40);
 			}
 			// Meridians, apex to rim. Twelve half-arcs close the sphere's top.
 			for (let k = 0; k < 12; k++) {
 				const a = (k / 12) * TWO_PI + spin;
 				domeCurve((u) => { const f = u * (Math.PI / 2); return [domePt(f, a), f, a]; },
-					14, OCEAN_FAR, OCEAN_NEAR, 0.12, 0.40);
+					merSteps, OCEAN_FAR, OCEAN_NEAR, 0.12, 0.40);
 			}
 
 			// The limb: where the sphere turns away from us, which in this
@@ -539,8 +551,8 @@
 			ctx.strokeStyle = `rgba(${ATMO_RGB},0.5)`;
 			ctx.beginPath();
 			for (const a of [0, Math.PI]) {
-				for (let i = 0; i <= 20; i++) {
-					const pt = domePt((i / 20) * (Math.PI / 2), a);
+				for (let i = 0; i <= merSteps; i++) {
+					const pt = domePt((i / merSteps) * (Math.PI / 2), a);
 					if (i === 0) ctx.moveTo(pt[0], pt[1]); else ctx.lineTo(pt[0], pt[1]);
 				}
 			}
@@ -553,25 +565,37 @@
 			// They ride the same depth fade as the grid, so land on the far side
 			// shows through faintly rather than being hidden — which is what sells
 			// a wireframe globe as a globe rather than a printed disc.
+			//
+			// Each leg is walked in lat/lon and projected per step rather than
+			// drawn as one screen-space line. On a small globe the difference was
+			// sub-pixel; at viewport width a straight chord between two coarse
+			// vertices visibly cuts through the ball instead of lying on it.
 			ctx.lineWidth = w < 480 ? 0.8 : 1.1;
+			const coastStep = Math.max(1, Math.round(domeR / 60));
+			/** Polar angle and screen-space longitude for a lat/lon pair. */
+			const coastFA = (lat, lon) => [
+				(90 - lat) * Math.PI / 180,
+				(lon - GLOBE_LON0) * Math.PI / 180 + Math.PI / 2 + spin,
+			];
 			for (const ring of COASTLINES) {
-				let prev = null;
-				for (let i = 0; i < ring.length; i += 2) {
-					const lat = ring[i];
-					const f = (90 - lat) * Math.PI / 180;
-					const a = (ring[i + 1] - GLOBE_LON0) * Math.PI / 180 + Math.PI / 2 + spin;
-					const pt = domePt(f, a);
-					// Below the equator there is no dome to draw on; break the run
+				for (let i = 0; i + 3 < ring.length; i += 2) {
+					const lat0 = ring[i], lon0 = ring[i + 1];
+					const lat1 = ring[i + 2], lon1 = ring[i + 3];
+					// Below the equator there is no dome to draw on; skip the leg
 					// rather than letting it cut a chord across the rim.
-					if (lat < 0) { prev = null; continue; }
-					if (prev) {
+					if (lat0 < 0 || lat1 < 0) continue;
+					let prev = domePt(...coastFA(lat0, lon0));
+					for (let s = 1; s <= coastStep; s++) {
+						const u = s / coastStep;
+						const [f, a] = coastFA(lat0 + (lat1 - lat0) * u, lon0 + (lon1 - lon0) * u);
+						const pt = domePt(f, a);
 						ctx.strokeStyle = shade(LAND_FAR, LAND_NEAR, depthAt(f, a), 0.18, 0.55);
 						ctx.beginPath();
 						ctx.moveTo(prev[0], prev[1]);
 						ctx.lineTo(pt[0], pt[1]);
 						ctx.stroke();
+						prev = pt;
 					}
-					prev = pt;
 				}
 			}
 
