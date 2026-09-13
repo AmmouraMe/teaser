@@ -296,6 +296,86 @@
 			[58,-5, 54,-2, 51,1, 50,-5, 55,-6, 58,-5],
 		];
 
+		// ── Weather and the light show ──
+		// Both belong to the track. Nothing here draws while the page is silent:
+		// the planet the visitor lands on is the bare wireframe, and pressing
+		// play is what gives it an atmosphere.
+
+		// Clouds arrive over about two seconds and clear a little faster. Slower
+		// than the EQ fade on purpose — weather should roll in, not switch on.
+		const CLOUD_FADE_IN = 0.012;
+		const CLOUD_FADE_OUT = 0.02;
+		// Clouds turn faster than the ground beneath them, so the two layers
+		// separate as the globe spins.
+		const CLOUD_DRIFT = 1.35;
+		// Cloud tops sit just off the surface. Enough to read as a layer at the
+		// limb, not enough to float.
+		const CLOUD_ALT = 1.015;
+		// The lit meridian colour the spectrum drives the wireframe toward.
+		const BEAT_NEAR = [186, 244, 255];
+
+		/** Small deterministic PRNG, so the sky is the same sky on every load. */
+		function mulberry32(a) {
+			return function () {
+				a = (a + 0x6d2b79f5) | 0;
+				let t = Math.imul(a ^ (a >>> 15), 1 | a);
+				t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+				return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+			};
+		}
+
+		// Cloud banks, in lat/lon on the same sphere as everything else. A bank is
+		// a dozen small puffs packed tightly enough to overlap: drawn additively
+		// they build one soft mass, where a few big puffs only ever read as a few
+		// big circles. Banks are stretched along longitude, the way weather
+		// actually bands, and the spread is divided by cos(lat) so a bank stays
+		// about as wide as it is tall as it approaches the pole.
+		const CLOUD_CELLS = (() => {
+			const rnd = mulberry32(0x5eed);
+			const cells = [];
+			for (let i = 0; i < 34; i++) {
+				// Biased to the tropics and mid-latitudes: rnd² leaves the pole
+				// comparatively clear, which is what the real thing looks like
+				// from above and stops the apex silting up.
+				const lat = 2 + rnd() * rnd() * 84;
+				const puffs = [];
+				const n = 9 + Math.floor(rnd() * 6);
+				const spread = 0.7 + rnd() * 0.8;
+				for (let p = 0; p < n; p++) {
+					puffs.push({
+						dLat: (rnd() - 0.5) * 5 * spread,
+						dLon: (rnd() - 0.5) * 9 * spread,
+						r: 0.4 + rnd() * 0.55,
+					});
+				}
+				cells.push({ lat, lon: rnd() * 360 - 180, puffs });
+			}
+			return cells;
+		})();
+
+		// One soft puff, drawn once and stamped with drawImage. A radial gradient
+		// built per puff per frame is the obvious way to do this and is far too
+		// expensive at three hundred of them. The falloff is deliberately gradual
+		// — any hard stop in the ramp shows up as a visible disc edge once a few
+		// hundred of these are stacked.
+		let puffSprite = null;
+		function getPuffSprite() {
+			if (puffSprite) return puffSprite;
+			const S = 128;
+			const c = document.createElement('canvas');
+			c.width = c.height = S;
+			const g = c.getContext('2d');
+			const grad = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+			grad.addColorStop(0, 'rgba(255,255,255,0.62)');
+			grad.addColorStop(0.30, 'rgba(240,248,255,0.30)');
+			grad.addColorStop(0.62, 'rgba(214,234,255,0.09)');
+			grad.addColorStop(1, 'rgba(200,226,255,0)');
+			g.fillStyle = grad;
+			g.fillRect(0, 0, S, S);
+			puffSprite = c;
+			return puffSprite;
+		}
+
 		// Tower and dome dimensions (responsive). The planet is deliberately far
 		// bigger than the towers now: its apex is their base, and the body of it
 		// hangs down behind the tagline and the headline. The canvas sits under
@@ -404,6 +484,8 @@
 			updateEqBars(playing);
 			const eqTarget = playing ? 1 : 0;
 			eqMix += (eqTarget - eqMix) * (eqTarget > eqMix ? EQ_FADE_IN : EQ_FADE_OUT);
+			// The weather has its own, slower fade than the arc's spectrum.
+			cloudMix += (eqTarget - cloudMix) * (eqTarget > cloudMix ? CLOUD_FADE_IN : CLOUD_FADE_OUT);
 
 			// Past path (dotted)
 			ctx.save();
@@ -529,26 +611,49 @@
 			const latSteps = Math.max(36, Math.round(domeR / 8));
 			const merSteps = Math.max(14, Math.round(latSteps / 4));
 
+			// The light show. While the track plays the graticule stops being a
+			// grid and becomes the instrument: the twelve meridians each take a
+			// slice of the spectrum, and the latitudes ride the kick. eqMix gates
+			// all of it, so a silent page draws exactly what it drew before.
+			//
+			// Mixing toward BEAT_NEAR rather than adding a second pass keeps this
+			// to the same stroke count — the lines get hotter, nothing new is
+			// drawn over them.
+			const mix3 = (base, hot, u) => [
+				base[0] + (hot[0] - base[0]) * u,
+				base[1] + (hot[1] - base[1]) * u,
+				base[2] + (hot[2] - base[2]) * u,
+			];
+
 			// Latitudes, apex to equator. Circles of constant f, so the spin does
 			// not move them — only the meridians and the coastlines turn.
+			const kick = eqMix * level;
+			const latNear = mix3(OCEAN_NEAR, BEAT_NEAR, kick * 0.7);
 			for (const deg of [15, 31, 47, 63, 79, 90]) {
 				const f = deg * Math.PI / 180;
 				domeCurve((u) => { const a = u * TWO_PI; return [domePt(f, a), f, a]; },
-					latSteps, OCEAN_FAR, OCEAN_NEAR, 0.12, 0.40);
+					latSteps, OCEAN_FAR, latNear, 0.12 + 0.10 * kick, 0.40 + 0.30 * kick);
 			}
-			// Meridians, apex to rim. Twelve half-arcs close the sphere's top.
+			// Meridians, apex to rim. Twelve half-arcs close the sphere's top —
+			// and, with the track running, twelve bands of the spectrum. The
+			// mapping is to the meridian index, not to a fixed screen position,
+			// so the lit bands ride the planet as it turns.
 			for (let k = 0; k < 12; k++) {
 				const a = (k / 12) * TWO_PI + spin;
+				const band = eqMix * eqBars[Math.min(EQ_BARS - 1, Math.round((k / 12) * (EQ_BARS - 1)))];
+				const near = mix3(OCEAN_NEAR, BEAT_NEAR, Math.min(1, band * 1.6));
 				domeCurve((u) => { const f = u * (Math.PI / 2); return [domePt(f, a), f, a]; },
-					merSteps, OCEAN_FAR, OCEAN_NEAR, 0.12, 0.40);
+					merSteps, OCEAN_FAR, near, 0.12 + 0.22 * band, 0.40 + 0.45 * band);
 			}
 
 			// The limb: where the sphere turns away from us, which in this
 			// projection is exactly the two meridians at a = 0 and a = PI. They
 			// are drawn explicitly rather than left to the spinning grid, so the
 			// globe keeps a lit edge no matter where the rotation has got to.
-			ctx.lineWidth = w < 480 ? 0.8 : 1.1;
-			ctx.strokeStyle = `rgba(${ATMO_RGB},0.5)`;
+			// On the beat the limb is also the atmosphere lighting up: the one
+			// edge that reads at a glance, so the kick lands there hardest.
+			ctx.lineWidth = (w < 480 ? 0.8 : 1.1) * (1 + 0.9 * kick);
+			ctx.strokeStyle = `rgba(${ATMO_RGB},${(0.5 + 0.45 * kick).toFixed(3)})`;
 			ctx.beginPath();
 			for (const a of [0, Math.PI]) {
 				for (let i = 0; i <= merSteps; i++) {
@@ -597,6 +702,51 @@
 						prev = pt;
 					}
 				}
+			}
+
+			// The cloud layer. Drawn after the surface because it sits above it,
+			// on a shell a little wider than the globe so it shows past the limb.
+			//
+			// Unlike the graticule, clouds on the far side are not drawn through:
+			// a wireframe reads as a sphere *because* you see its back, and an
+			// opaque cloud seen through the planet reads as a smudge. The depth
+			// fade here is steep and cuts to nothing before the terminator.
+			if (cloudMix > 0.004) {
+				const sprite = getPuffSprite();
+				const cloudR = domeR * CLOUD_ALT;
+				const cloudSpin = spin * CLOUD_DRIFT;
+				const puffR = domeR * 0.105;
+				ctx.save();
+				// Additive, so puffs that overlap build into a bank instead of
+				// stacking into a flat grey disc.
+				ctx.globalCompositeOperation = 'lighter';
+				for (const cell of CLOUD_CELLS) {
+					const cosLat = Math.max(0.25, Math.cos(cell.lat * Math.PI / 180));
+					for (const puff of cell.puffs) {
+						const lat = cell.lat + puff.dLat;
+						if (lat < 0 || lat > 89) continue;
+						const f = (90 - lat) * Math.PI / 180;
+						const a = (cell.lon + puff.dLon / cosLat - GLOBE_LON0) * Math.PI / 180
+							+ Math.PI / 2 + cloudSpin;
+						// Steep near-side falloff: 0 at the terminator, 1 face on.
+						const d = depthAt(f, a);
+						if (d < 0.52) continue;
+						const face = Math.min(1, (d - 0.52) / 0.30);
+						// The beat lights the tops, the same way it lights the limb.
+						const alpha = cloudMix * face * face * (0.15 + 0.18 * kick);
+						if (alpha < 0.004) continue;
+						const x = domeCX + cloudR * Math.sin(f) * Math.cos(a);
+						const y = domeCY - cloudR * Math.cos(f)
+							+ DOME_TILT * cloudR * Math.sin(f) * Math.sin(a);
+						// Foreshortened toward the limb, so a puff flattens as the
+						// surface it sits on turns away.
+						const rx = puffR * puff.r * (0.45 + 0.55 * face);
+						const ry = rx * (0.55 + 0.45 * DOME_TILT);
+						ctx.globalAlpha = alpha;
+						ctx.drawImage(sprite, x - rx, y - ry, rx * 2, ry * 2);
+					}
+				}
+				ctx.restore();
 			}
 
 			// Two tall wireframe rectangles standing on the apex.
@@ -756,6 +906,7 @@
 	let freqData = null;
 	let level = 0; // smoothed 0..1
 	let eqMix = 0; // 0 silent, 1 playing — smoothed, so it fades rather than snaps
+	let cloudMix = 0; // the same idea for the cloud layer, on a slower curve
 	const eqBars = new Float32Array(EQ_BARS);
 	let dancePhase = 0;
 	let lastFrameAt = 0;
