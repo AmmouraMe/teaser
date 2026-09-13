@@ -1156,6 +1156,17 @@
 	{/if}
 </main>
 
+<!-- Mirrors the legal links in the opposite corner. Outside <main> on purpose:
+     it should survive the switch to the confirmation view, because who is
+     building this is true either way. The brand is written "*Space", asterisk
+     and all, so the label is uppercased and the name is left alone. -->
+<a class="built-at" href="https://starspace.group" target="_blank" rel="noopener">
+	<span class="built-dot" aria-hidden="true"></span>
+	<span class="built-label built-label-full">Currently being built at</span>
+	<span class="built-label built-label-short">Building at</span>
+	<span class="built-brand">*Space</span>
+</a>
+
 <footer class="site-footer">
 	<a href="/privacy">Privacy Policy</a>
 	<span aria-hidden="true">&middot;</span>
@@ -1525,6 +1536,97 @@
 	}
 	.site-footer span {
 		color: rgba(255, 255, 255, 0.35);
+	}
+
+	/* ── "Currently being built at *Space" ── */
+
+	/* Bottom-left, mirroring the legal links bottom-right. A pill rather than
+	   bare text: the planet now turns behind this corner, and a grid line
+	   crossing loose words is much harder to read than one crossing a panel. */
+	.built-at {
+		position: fixed;
+		left: calc(1.25rem + env(safe-area-inset-left, 0px));
+		bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+		z-index: 10;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.4rem 0.75rem;
+		border: 1px solid rgba(255, 255, 255, 0.14);
+		border-radius: 999px;
+		background: rgba(10, 12, 16, 0.55);
+		backdrop-filter: blur(6px);
+		-webkit-backdrop-filter: blur(6px);
+		font-size: 0.66rem;
+		text-decoration: none;
+		color: rgba(255, 255, 255, 0.6);
+		transition: color 0.2s, border-color 0.2s, background 0.2s;
+	}
+	.built-at:hover,
+	.built-at:focus-visible {
+		color: rgba(255, 255, 255, 0.9);
+		border-color: rgba(255, 255, 255, 0.3);
+		background: rgba(10, 12, 16, 0.75);
+	}
+
+	/* Uppercase stops at the label: "*Space" is a name, not a shouted word. */
+	.built-label {
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+	}
+
+	/* Two labels, one shown at a time. `display: none` rather than a visual
+	   hide, so a screen reader gets the one sentence and not both. */
+	.built-label-short {
+		display: none;
+	}
+
+	.built-brand {
+		letter-spacing: 0.04em;
+		font-size: 0.78rem;
+		color: rgba(255, 255, 255, 0.92);
+	}
+
+	/* Still building. The colour is the globe's near-side green, so the one
+	   spot of colour down here belongs to something already on the page. */
+	.built-dot {
+		width: 5px;
+		height: 5px;
+		flex: none;
+		border-radius: 50%;
+		background: rgb(132, 226, 136);
+		box-shadow: 0 0 6px rgba(132, 226, 136, 0.8);
+		animation: built-pulse 2.4s ease-in-out infinite;
+	}
+
+	@keyframes built-pulse {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.35; }
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.built-dot {
+			animation: none;
+		}
+	}
+
+	/* Narrow screens: the legal links stack into the opposite corner here, so
+	   this one gets tight too. The sentence shortens rather than disappearing —
+	   "*Space" on its own would name the builder but drop the news. */
+	@media (max-width: 560px) {
+		.built-at {
+			left: calc(0.9rem + env(safe-area-inset-left, 0px));
+			bottom: calc(0.7rem + env(safe-area-inset-bottom, 0px));
+			padding: 0.35rem 0.6rem;
+			gap: 0.4rem;
+			font-size: 0.62rem;
+		}
+		.built-label-full {
+			display: none;
+		}
+		.built-label-short {
+			display: inline;
+		}
 	}
 
 	/* ── Play button: track 1 of the album ── */
