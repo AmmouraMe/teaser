@@ -242,6 +242,12 @@
 		const COAT_FAR_FILL = 'rgba(253,238,245,0.95)';
 		const HORN_FILL = 'rgba(255,188,222,0.97)';
 
+		// How many poses of the stride are baked. The legs are swept tubes, so
+		// re-posing them every frame would mean re-sweeping every frame; baking a
+		// dozen and choosing one costs a little memory and nothing per frame.
+		// Twelve reads as continuous at the stride rates below.
+		const GALLOP_FRAMES = 12;
+
 		const UNICORN_V3 = [];
 		const UNICORN_E3 = [];
 		// Every stroke lands in a named part, and each part is painted in its own
@@ -263,12 +269,17 @@
 		const UNI_STEP = 0.032;
 		{
 			/** Sweep every stroke of one part, and remember the edges as that part. */
-			function part(tag, strokes, r = UNICORN_TUB) {
+			function part(tag, strokes, r = UNICORN_TUB, frame) {
 				const from = UNICORN_E3.length;
+				const vFrom = UNICORN_V3.length;
 				for (const stroke of strokes) {
 					sweep(resample(stroke, UNI_STEP), 0, UNICORN_V3, UNICORN_E3, r);
 				}
-				UNICORN_PARTS.push({ kind: 'stroke', tag, from, to: UNICORN_E3.length });
+				UNICORN_PARTS.push({
+					kind: 'stroke', tag, frame,
+					from, to: UNICORN_E3.length,
+					vFrom, vTo: UNICORN_V3.length,
+				});
 			}
 
 			/**
@@ -286,7 +297,11 @@
 			function fill(colour, path) {
 				const from = UNICORN_V3.length;
 				for (const [z, y] of path) UNICORN_V3.push([0, y, z]);
-				UNICORN_PARTS.push({ kind: 'fill', colour, from, to: UNICORN_V3.length });
+				UNICORN_PARTS.push({
+					kind: 'fill', colour,
+					from, to: UNICORN_V3.length,
+					vFrom: from, vTo: UNICORN_V3.length,
+				});
 			}
 
 			/** A hoof: a small box squared onto the end of a leg, along its last
@@ -337,25 +352,76 @@
 
 
 			// ── Legs ──
-			// Mid-canter: the near fore reaching, the off fore folded under, the
-			// near hind driving back and the off hind trailing it. Each breaks at
-			// elbow, knee and fetlock — a leg drawn as one arc is a sausage.
-			const foreNear = [
-				[0.330, -0.150], [0.344, -0.258], [0.394, -0.406],
-				[0.456, -0.526], [0.494, -0.622], [0.518, -0.686],
+			// Not four fixed paths any more: a leg is an origin, five segment
+			// lengths and an angle per segment, so the same leg can be posed
+			// anywhere in a stride. The lengths are measured off the hand-drawn
+			// canter this replaces, which is what keeps it the same leg.
+			//
+			// Angles are degrees from straight down, positive forward — the
+			// direction the unicorn faces — so a reaching leg is positive
+			// throughout and a trailing one negative.
+			const FORE_SEG = [0.109, 0.156, 0.135, 0.103, 0.068];
+			const HIND_SEG = [0.151, 0.212, 0.142, 0.108, 0.073];
+			// The off pair hangs from slightly further back, which is the only
+			// depth cue a strict profile allows.
+			const FORE_ORIGIN = [0.330, -0.150];
+			const FORE_ORIGIN_FAR = [0.296, -0.164];
+			const HIND_ORIGIN = [-0.372, -0.068];
+			const HIND_ORIGIN_FAR = [-0.338, -0.082];
+
+			// One stride, as four poses a leg passes through in order: reach out,
+			// plant under the body, push away behind, then fold up and carry the
+			// foot forward again.
+			const FORE_KEYS = [
+				[54, 62, 40, 24, 12],      // reach — right out in front
+				[5, 6, 2, 0, -2],          // plant
+				[-34, -42, -28, -16, -6],  // push
+				[-14, -26, 62, 104, 120],  // fold — the knee shuts and the cannon
+			];                             //        swings up under the chest
+			const HIND_KEYS = [
+				[58, -6, 30, 30, 18],
+				[14, -32, -6, 0, -2],
+				[-20, -60, -46, -30, -18],
+				[40, -30, 58, 74, 46],
 			];
-			const foreFar = [
-				[0.278, -0.176], [0.264, -0.292], [0.220, -0.420],
-				[0.268, -0.522], [0.334, -0.558], [0.386, -0.550],
-			];
-			const hindNear = [
-				[-0.372, -0.068], [-0.322, -0.210], [-0.438, -0.388],
-				[-0.486, -0.522], [-0.506, -0.628], [-0.520, -0.700],
-			];
-			const hindFar = [
-				[-0.305, -0.112], [-0.266, -0.244], [-0.368, -0.404],
-				[-0.386, -0.520], [-0.374, -0.614],
-			];
+
+			// Where each leg sits in the stride. A gallop is four separate beats,
+			// not two pairs moving together: both hinds land, then both fores,
+			// then the whole animal is off the ground.
+			const GALLOP_OFFSET = { hindFar: 0, hindNear: 0.13, foreFar: 0.46, foreNear: 0.59 };
+
+			const D2R = Math.PI / 180;
+
+			/** Pose one leg at a point in the stride, as a path the sweep can take. */
+			function legAt(origin, seg, keys, phase) {
+				const n = keys.length;
+				const f = (((phase % 1) + 1) % 1) * n;
+				const i = Math.floor(f);
+				const t = f - i;
+				// Smoothstep between keys, so a joint eases into its next angle
+				// rather than changing speed at every key.
+				const e = t * t * (3 - 2 * t);
+				const a = keys[i];
+				const b = keys[(i + 1) % n];
+				const pts = [origin.slice()];
+				for (let k = 0; k < seg.length; k++) {
+					const ang = (a[k] + (b[k] - a[k]) * e) * D2R;
+					const prev = pts[pts.length - 1];
+					pts.push([prev[0] + seg[k] * Math.sin(ang), prev[1] - seg[k] * Math.cos(ang)]);
+				}
+				return pts;
+			}
+
+			const legs = (f) => {
+				const ph = f / GALLOP_FRAMES;
+				return {
+					foreNear: legAt(FORE_ORIGIN, FORE_SEG, FORE_KEYS, ph + GALLOP_OFFSET.foreNear),
+					foreFar: legAt(FORE_ORIGIN_FAR, FORE_SEG, FORE_KEYS, ph + GALLOP_OFFSET.foreFar),
+					hindNear: legAt(HIND_ORIGIN, HIND_SEG, HIND_KEYS, ph + GALLOP_OFFSET.hindNear),
+					hindFar: legAt(HIND_ORIGIN_FAR, HIND_SEG, HIND_KEYS, ph + GALLOP_OFFSET.hindFar),
+				};
+			};
+			const POSES = Array.from({ length: GALLOP_FRAMES }, (_, f) => legs(f));
 
 			// ── Mane ──
 			// Five strands off the crest, streaming back over the withers. Separate
@@ -437,10 +503,18 @@
 			// fill covering their tops is what the animal actually looks like; the
 			// near pair is told apart by its paint, not by its order.
 			part('tail', [...tail, dock], UNICORN_TUB * 0.7);
-			part('coatFar', [hindFar, foreFar]);
-			part('hoofFar', [hoof(hindFar), hoof(foreFar)]);
-			part('coat', [hindNear, foreNear]);
-			part('hoof', [hoof(hindNear), hoof(foreNear)]);
+			for (let f = 0; f < GALLOP_FRAMES; f++) {
+				part('coatFar', [POSES[f].hindFar, POSES[f].foreFar], UNICORN_TUB, f);
+			}
+			for (let f = 0; f < GALLOP_FRAMES; f++) {
+				part('hoofFar', [hoof(POSES[f].hindFar), hoof(POSES[f].foreFar)], UNICORN_TUB, f);
+			}
+			for (let f = 0; f < GALLOP_FRAMES; f++) {
+				part('coat', [POSES[f].hindNear, POSES[f].foreNear], UNICORN_TUB, f);
+			}
+			for (let f = 0; f < GALLOP_FRAMES; f++) {
+				part('hoof', [hoof(POSES[f].hindNear), hoof(POSES[f].foreNear)], UNICORN_TUB, f);
+			}
 			fill(COAT_FAR_FILL, earFar);
 			part('coatFar', [earFar]);
 			fill(COAT_FILL, silhouette);
@@ -962,6 +1036,19 @@
 			};
 		}
 
+		// One flat x,y buffer per model, kept for as long as the model is. Both
+		// models are built once in this scope, so a WeakMap would buy nothing a
+		// pair of slots does not.
+		const projBuffers = new WeakMap();
+		function projectionBuffer(V) {
+			let buf = projBuffers.get(V);
+			if (!buf || buf.length < V.length * 2) {
+				buf = new Float64Array(V.length * 2);
+				projBuffers.set(V, buf);
+			}
+			return buf;
+		}
+
 		/** The theme's ink at an alpha — every white the draw loop used to hardcode. */
 		const inkA = (a) => `rgba(${pal().ink.join(',')},${Math.min(1, a * pal().lineBoost)})`;
 
@@ -992,6 +1079,13 @@
 			const target = playing ? readLevel() : 0;
 			level += (target - level) * (target > level ? DANCE_ATTACK : DANCE_RELEASE);
 			dancePhase += dt * DANCE_SPEED;
+
+			// The stride. Advanced every frame whatever the theme, so switching to
+			// the unicorn mid-track does not drop it into a standing pose.
+			const running = playing ? 1 : 0;
+			gallopMix +=
+				(running - gallopMix) * (running > gallopMix ? GALLOP_SPIN_UP : GALLOP_WIND_DOWN);
+			gallopPhase += dt * gallopMix * (GALLOP_RATE + GALLOP_RATE_DRIVE * level);
 
 			// readLevel() has just refreshed freqData, so the bars are free.
 			updateEqBars(playing);
@@ -1366,27 +1460,32 @@
 			const MODEL_V3 = isLight() ? UNICORN_V3 : V3;
 			const MODEL_E3 = isLight() ? UNICORN_E3 : E3;
 
-			const projected = MODEL_V3.map(([mx, my, mz]) => {
-				// Yaw: rotate around Y axis
-				let x1 = mx * cyaw + mz * syaw;
-				let z1 = -mx * syaw + mz * cyaw;
-				let y1 = my;
+			// Project into a buffer held for the life of the model rather than a
+			// fresh array of points every frame. The unicorn carries a dozen baked
+			// stride frames, and building 12,000 little arrays sixty times a second
+			// is a lot of garbage for a page that otherwise makes almost none.
+			// Flat x,y pairs: vertex i is at [i * 2] and [i * 2 + 1].
+			const projected = projectionBuffer(MODEL_V3);
 
-				// Pitch: rotate around X axis
-				let y2 = y1 * cpitch - z1 * spitch;
-				let z2 = y1 * spitch + z1 * cpitch;
-				// After view rotation, x1 is screen-right, y2 is screen-up
-				// z2 is depth (ignored for orthographic)
-
-				// Rotate 2D coordinates to align the number with the tangent
-				const sx = x1 * cfa - (-y2) * sfa;
-				const sy = x1 * sfa + (-y2) * cfa;
-
-				return [
-					px + sx * planeSize,
-					py + sy * planeSize,
-				];
-			});
+			/** Project one run of vertices. Only what is about to be drawn. */
+			function projectRange(from, to) {
+				for (let i = from; i < to; i++) {
+					const v = MODEL_V3[i];
+					if (!v) continue;
+					const mx = v[0], my = v[1], mz = v[2];
+					// Yaw: rotate around Y axis
+					const x1 = mx * cyaw + mz * syaw;
+					const z1 = -mx * syaw + mz * cyaw;
+					// Pitch: rotate around X axis. z2 is depth, and this is an
+					// orthographic view, so it is never needed.
+					const y2 = my * cpitch - z1 * spitch;
+					// Rotate to align the model with the arc's tangent.
+					const sx = x1 * cfa - -y2 * sfa;
+					const sy = x1 * sfa + -y2 * cfa;
+					projected[i * 2] = px + sx * planeSize;
+					projected[i * 2 + 1] = py + sy * planeSize;
+				}
+			}
 
 			// Wireframe edges. The digits are one ink; the unicorn is painted a
 			// part at a time, back to front, each part's passes batched into a
@@ -1394,23 +1493,28 @@
 			// rather than one stroke each.
 			const lineBase = w < 480 ? 0.7 : 1;
 			if (isLight()) {
+				const stride = (((gallopPhase % 1) + 1) % 1) * GALLOP_FRAMES;
+				const gallopFrame = Math.min(GALLOP_FRAMES - 1, Math.floor(stride));
 				ctx.save();
 				ctx.lineCap = 'round';
 				ctx.lineJoin = 'round';
 				for (const p of UNICORN_PARTS) {
+					// Legs are baked one set per stride frame; everything else carries
+					// no frame and is drawn every time. Skipping here is also what
+					// keeps the eleven unused strides out of the projection.
+					if (p.frame !== undefined && p.frame !== gallopFrame) continue;
+					projectRange(p.vFrom, p.vTo);
 					// A filled region: its indices are vertices, not edges, and it
 					// goes down before the outline that shares its path.
 					if (p.kind === 'fill') {
 						ctx.fillStyle = p.colour;
 						ctx.beginPath();
-						let started = false;
-						for (let i = p.from; i < p.to; i++) {
-							const v = projected[i];
-							if (!v) continue;
-							if (started) ctx.lineTo(v[0], v[1]);
-							else { ctx.moveTo(v[0], v[1]); started = true; }
+						ctx.moveTo(projected[p.from * 2], projected[p.from * 2 + 1]);
+						for (let i = p.from + 1; i < p.to; i++) {
+							ctx.lineTo(projected[i * 2], projected[i * 2 + 1]);
 						}
-						if (started) { ctx.closePath(); ctx.fill(); }
+						ctx.closePath();
+						ctx.fill();
 						continue;
 					}
 					for (const [color, width] of UNICORN_PAINT[p.tag]) {
@@ -1418,24 +1522,23 @@
 						ctx.lineWidth = lineBase * width;
 						ctx.beginPath();
 						for (let i = p.from; i < p.to; i++) {
-							const [a, b] = MODEL_E3[i];
-							const pa = projected[a], pb = projected[b];
-							if (!pa || !pb) continue;
-							ctx.moveTo(pa[0], pa[1]);
-							ctx.lineTo(pb[0], pb[1]);
+							const e = MODEL_E3[i];
+							const a = e[0] * 2, b = e[1] * 2;
+							ctx.moveTo(projected[a], projected[a + 1]);
+							ctx.lineTo(projected[b], projected[b + 1]);
 						}
 						ctx.stroke();
 					}
 				}
 				ctx.restore();
 			} else {
+				projectRange(0, MODEL_V3.length);
 				ctx.strokeStyle = inkA(0.65);
 				ctx.lineWidth = lineBase;
 				for (const [a, b] of MODEL_E3) {
-					if (!projected[a] || !projected[b]) continue;
 					ctx.beginPath();
-					ctx.moveTo(projected[a][0], projected[a][1]);
-					ctx.lineTo(projected[b][0], projected[b][1]);
+					ctx.moveTo(projected[a * 2], projected[a * 2 + 1]);
+					ctx.lineTo(projected[b * 2], projected[b * 2 + 1]);
 					ctx.stroke();
 				}
 			}
@@ -1724,6 +1827,22 @@
 	let cloudMix = 0; // the same idea for the cloud layer, on a slower curve
 	const eqBars = new Float32Array(EQ_BARS);
 	let dancePhase = 0;
+
+	// ── The gallop ──
+	// Standing is the unicorn's resting state; the track is what sets it running.
+	// `gallopMix` eases between the two so the stride spins up and winds down
+	// rather than snapping into motion, and the phase always advances at whatever
+	// rate the mix allows — which means stopping the track leaves the legs
+	// wherever the last stride put them, the way a still of a running horse
+	// looks, instead of jumping back to a pose.
+	let gallopPhase = 0;
+	let gallopMix = 0;
+	// Strides per second. A hand gallop is a little over two; the louder it gets,
+	// the harder it runs.
+	const GALLOP_RATE = 2.1;
+	const GALLOP_RATE_DRIVE = 1.2;
+	const GALLOP_SPIN_UP = 0.045;
+	const GALLOP_WIND_DOWN = 0.022;
 	let lastFrameAt = 0;
 
 	// Rig state. Energy now, energy on average, and a decaying impulse per band.

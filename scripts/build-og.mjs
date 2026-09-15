@@ -136,6 +136,10 @@ const UNI_SIZE = 44;
 // the feed, which shows this at a third of its size and on someone else's
 // background.
 const UNI_STROKE = (UNI_SIZE / 43) * 1.5;
+// The legs are baked one set per stride frame and the card is a still, so it
+// picks one. This is the moment mid-suspension with the forelegs reaching —
+// the pose that reads as "running" rather than "standing" in a single frame.
+const UNI_STRIDE_FRAME = 7;
 
 /** The light theme's sky, the same four stops the page puts on <body>. */
 const SKY = [
@@ -518,6 +522,8 @@ module.exports = { ops };
 			return m ? [`rgb(${m[1]},${m[2]},${m[3]})`, m[4] === undefined ? '1' : m[4]] : [c, '1'];
 		};
 		for (const part of uniParts) {
+			// One stride frame only: the rest belong to other moments of the gallop.
+			if (part.frame !== undefined && part.frame !== UNI_STRIDE_FRAME) continue;
 			// A filled region indexes vertices rather than edges, and lays the solid
 			// down before the outline that shares its path.
 			if (part.kind === 'fill') {
