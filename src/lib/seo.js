@@ -25,6 +25,22 @@ export const LAUNCH_ISO = '2026-11-21T19:00:00-07:00';
 export const DISCORD_URL = 'https://discord.gg/dPRvKFS9dq';
 
 /**
+ * Every account Ammoura actually has.
+ *
+ * One list, read twice: the row of links on the page, and the `sameAs` in the
+ * JSON-LD, which is how a search engine is told that these profiles and this
+ * site are the same organisation. Adding a network means adding an entry here
+ * and its icon in the page's SOCIAL_ICON map — nothing else.
+ *
+ * Deliberately short. These are the two that exist; an icon linking to an
+ * account nobody is running is worse than no icon.
+ */
+export const SOCIAL_LINKS = [
+	{ id: 'discord', label: 'Discord', href: DISCORD_URL },
+	{ id: 'github', label: 'GitHub', href: 'https://github.com/AmmouraMe' }
+];
+
+/**
  * The default description.
  *
  * Front-loaded with what the product is, because search engines cut around

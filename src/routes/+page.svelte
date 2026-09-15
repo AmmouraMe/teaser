@@ -12,6 +12,7 @@
 		CAPABILITIES,
 		LAUNCH_ISO,
 		DISCORD_URL,
+		SOCIAL_LINKS,
 		OG_IMAGE_PATH,
 		OG_IMAGE_UNICORN_PATH,
 		OG_IMAGE_ALT,
@@ -1607,7 +1608,7 @@
 				'@type': 'ImageObject',
 				url: SITE_URL + '/favicon.png'
 			},
-			sameAs: [DISCORD_URL]
+			sameAs: SOCIAL_LINKS.map((l) => l.href)
 		},
 		{
 			'@type': 'SoftwareApplication',
@@ -2039,6 +2040,15 @@
 	}
 
 	// Brand marks for the join buttons, keyed by provider id.
+	// Marks for the social row, keyed the same way SOCIAL_LINKS is. Kept apart
+	// from PROVIDER_ICON on purpose: those are sign-in buttons and only exist
+	// when a provider is configured, while these are the accounts themselves and
+	// should be there whatever the auth setup is doing.
+	const SOCIAL_ICON = {
+		discord: '<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true"><path d="M20.317 4.369a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.372-.291a.074.074 0 0 1 .078-.01c3.927 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .079.009c.12.099.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>',
+		github: '<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true"><path d="M12 .3a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.4-1.8-1.4-1.8-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2 0-.4-.5-1.6.2-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.4 5.5 18.4 5.8 18.4 5.8c.7 1.6.2 2.8.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .3z"/></svg>'
+	};
+
 	const PROVIDER_ICON = {
 		github: '<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true"><path d="M12 .3a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.4-1.8-1.4-1.8-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2 0-.4-.5-1.6.2-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.4 5.5 18.4 5.8 18.4 5.8c.7 1.6.2 2.8.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .3z"/></svg>',
 		discord: '<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true"><path d="M20.317 4.369a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.372-.291a.074.074 0 0 1 .078-.01c3.927 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .079.009c.12.099.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>',
@@ -2366,6 +2376,7 @@
 				</div>
 			{/if}
 
+			{@render socials()}
 		</section>
 	{/if}
 
@@ -2383,9 +2394,30 @@
 				</svg>
 				Join the Ammoura Discord
 			</a>
+			{@render socials()}
 		</section>
 	{/if}
 </main>
+
+<!-- Where to find Ammoura. Two accounts, because two is what exists — an icon
+     pointing at an account nobody is running is worse than no icon. The list
+     lives in seo.js, which also feeds the JSON-LD `sameAs`, so the page and the
+     structured data cannot disagree about where the brand is. -->
+{#snippet socials()}
+	<nav class="socials" aria-label="Ammoura elsewhere">
+		<!-- Captioned, because the sign-in buttons directly above can include a
+		     Discord one, and two Discord marks a few centimetres apart with no
+		     label between them is a puzzle. "Join with Discord" and "Ammoura on
+		     Discord" are different things and should look like it. -->
+		<span class="socials-label">Find us</span>
+		{#each SOCIAL_LINKS as link (link.id)}
+			<a class="social" href={link.href} target="_blank" rel="noopener noreferrer"
+				aria-label="Ammoura on {link.label}" title="Ammoura on {link.label}">
+				{@html SOCIAL_ICON[link.id]}
+			</a>
+		{/each}
+	</nav>
+{/snippet}
 
 <!-- Mirrors the legal links in the opposite corner. Outside <main> on purpose:
      it should survive the switch to the confirmation view, because who is
@@ -2835,6 +2867,61 @@
 		opacity: 0.25;
 		cursor: default;
 		pointer-events: none;
+	}
+
+	/* ── Where to find us ──
+	   A quiet row under the sign-up, in the same register as the legal links:
+	   this is a footnote, not a call to action. The circles echo the theme
+	   switch so the page's small chrome all reads as one family. */
+	.socials {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.6rem;
+		margin-top: 2.2rem;
+	}
+
+	/* The same quiet caption the "or" between sign-up routes uses. */
+	.socials-label {
+		margin-right: 0.35rem;
+		font-size: 0.65rem;
+		letter-spacing: 0.3em;
+		text-transform: uppercase;
+		opacity: 0.4;
+	}
+
+	.social {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		/* Matches the theme switch, so the page's small round chrome is one size. */
+		width: 38px;
+		height: 38px;
+		border: 1px solid rgb(var(--ink-rgb) / 0.18);
+		border-radius: 999px;
+		color: var(--ink);
+		opacity: 0.55;
+		transition: opacity 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+	}
+
+	.social:hover,
+	.social:focus-visible {
+		opacity: 1;
+		border-color: rgb(var(--ink-rgb) / 0.4);
+		transform: translateY(-1px);
+	}
+
+	@media (max-width: 560px) {
+		.socials {
+			margin-top: 1.6rem;
+			gap: 0.75rem;
+		}
+		/* Up to a comfortable thumb on a phone. Quiet is a matter of contrast
+		   here, not of being small enough to miss. */
+		.social {
+			width: 44px;
+			height: 44px;
+		}
 	}
 
 	/* Pinned bottom-right. The hero is 100vh with an absolutely positioned
