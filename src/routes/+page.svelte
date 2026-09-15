@@ -120,13 +120,13 @@
 			return pts;
 		}
 
-		/** Subdivide so no gap between rings is longer than MAX_STEP. */
-		function resample(path) {
+		/** Subdivide so no gap between rings is longer than `step`. */
+		function resample(path, step = MAX_STEP) {
 			const out = [path[0]];
 			for (let i = 1; i < path.length; i++) {
 				const [z0, y0] = path[i - 1];
 				const [z1, y1] = path[i];
-				const n = Math.max(1, Math.ceil(Math.hypot(z1 - z0, y1 - y0) / MAX_STEP));
+				const n = Math.max(1, Math.ceil(Math.hypot(z1 - z0, y1 - y0) / step));
 				for (let k = 1; k <= n; k++) out.push([z0 + (z1 - z0) * (k / n), y0 + (y1 - y0) * (k / n)]);
 			}
 			return out;
@@ -223,47 +223,218 @@
 		// sign-writer's description of a shape does not care whether the shape is
 		// a numeral. Facing +z, which the view yaw turns into screen-right, so the
 		// unicorn faces along its own direction of travel down the arc.
+		//
+		// The drawing is a horse first and a unicorn second: an arched crest, a
+		// dished face, a deep girth over a tucked belly, and legs that break at
+		// the elbow, knee and fetlock rather than bending in one arc. A unicorn
+		// that is a horse with a horn reads as a unicorn; one built out of
+		// sausages reads as a toy.
 		const UNICORN_V3 = [];
 		const UNICORN_E3 = [];
-		const UNICORN_SCALE = 0.72;
-		// A finer tube than the digits get. The unicorn's features — a horn, an
-		// ear, four legs — are small next to a numeral's strokes, and at the
-		// digits' thickness they close up into a blob.
-		const UNICORN_TUB = tubR * 0.55;
+		// Every stroke lands in a named part, and each part is painted in its own
+		// colour. The order they are added is the order they are drawn, so this
+		// list runs back to front: tail and off-side legs, the body, then the
+		// near legs, the mane over the neck, and the horn in front of everything.
+		const UNICORN_PARTS = [];
+		// Bigger than the digits it replaces. A unicorn carrying a jowl, a fetlock
+		// and five mane strands needs more room than a numeral does, and at the
+		// glyph's size every one of them collapsed into the outline.
+		const UNICORN_SCALE = 1.35;
+		// Finer than the digits get, and finer than the first pass used. The
+		// features that make this a horse — a jowl, a fetlock, six mane strands
+		// lying beside each other — are small next to a numeral's strokes, and at
+		// the digits' thickness they close up into one blob.
+		const UNICORN_TUB = tubR * 0.20;
+		// Rings closer together than the digits', because these paths curve where
+		// a numeral's mostly do not.
+		const UNI_STEP = 0.032;
 		{
-			// Barrel, as a closed loop. A tube swept round a closed centreline is
-			// an outline, not a solid — which is the same way the digits read.
-			const body = [
-				[-0.42, 0.08], [-0.33, 0.28], [-0.10, 0.36], [0.16, 0.34], [0.30, 0.24],
-				[0.36, 0.06], [0.30, -0.12], [0.08, -0.20], [-0.20, -0.19], [-0.38, -0.08],
-				[-0.42, 0.08],
-			];
-			// Neck, head and jaw as one closed outline, run up off the shoulder.
-			const head = [
-				[0.20, 0.30], [0.38, 0.52], [0.48, 0.68], [0.62, 0.74], [0.78, 0.66],
-				[0.86, 0.54], [0.80, 0.46], [0.64, 0.46], [0.52, 0.52], [0.40, 0.40],
-				[0.26, 0.26],
-			];
-			// The horn. The one stroke that settles what animal this is.
-			const horn = [[0.63, 0.76], [0.70, 0.92], [0.75, 1.06]];
-			const ear = [[0.50, 0.72], [0.52, 0.88], [0.61, 0.77]];
-			// Mane, down the back of the neck, and a tail with some flick in it.
-			const mane = [[0.47, 0.86], [0.40, 0.66], [0.31, 0.50], [0.20, 0.38], [0.08, 0.33]];
-			const tail = [[-0.41, 0.20], [-0.58, 0.16], [-0.70, -0.02], [-0.66, -0.24], [-0.54, -0.34]];
-			// Four legs, mid-canter: the near pair reaching, the far pair trailing.
-			const legs = [
-				[[0.22, -0.16], [0.30, -0.38], [0.26, BASE_Y]],
-				[[0.06, -0.20], [0.09, -0.42], [0.03, BASE_Y]],
-				[[-0.20, -0.19], [-0.29, -0.40], [-0.23, BASE_Y]],
-				[[-0.33, -0.14], [-0.42, -0.37], [-0.38, BASE_Y]],
-			];
-			for (const stroke of [body, head, horn, ear, mane, tail, ...legs]) {
-				sweep(resample(stroke), 0, UNICORN_V3, UNICORN_E3, UNICORN_TUB);
+			/** Sweep every stroke of one part, and remember the edges as that part. */
+			function part(tag, strokes, r = UNICORN_TUB) {
+				const from = UNICORN_E3.length;
+				for (const stroke of strokes) {
+					sweep(resample(stroke, UNI_STEP), 0, UNICORN_V3, UNICORN_E3, r);
+				}
+				UNICORN_PARTS.push({ tag, from, to: UNICORN_E3.length });
 			}
+
+			/** A hoof: a small box squared onto the end of a leg, along its last
+			    segment, so it sits at whatever angle that leg happens to land. */
+			function hoof(leg, size = 0.042) {
+				const p1 = leg[leg.length - 1], p0 = leg[leg.length - 2];
+				let dz = p1[0] - p0[0], dy = p1[1] - p0[1];
+				const l = Math.hypot(dz, dy) || 1;
+				dz /= l; dy /= l;
+				const nz = -dy, ny = dz;
+				const a = [p1[0] - nz * size, p1[1] - ny * size];
+				const b = [p1[0] + nz * size, p1[1] + ny * size];
+				const c = [b[0] + dz * size * 1.25, b[1] + dy * size * 1.25];
+				const d = [a[0] + dz * size * 1.25, a[1] + dy * size * 1.25];
+				return [a, b, c, d, a];
+			}
+
+			// ── Silhouette ──
+			// Two open paths that meet end to end: the barrel runs chest → belly →
+			// hindquarter → back → withers, and the neck picks the withers up and
+			// carries on over the crest, round the head and back down the throat to
+			// the chest. Open rather than closed, so neither one has to cut a chord
+			// across the body to shut itself.
+			//
+			// Proportion is the whole job here. A barrel much deeper than half its
+			// length reads as a box with legs; the topline has to dip behind the
+			// withers and rise again over the croup, and the underline has to run
+			// deep at the girth and tuck up at the flank, or none of it is a horse.
+			const barrel = [
+				[0.355, 0.150], [0.370, 0.060], [0.355, -0.030], [0.300, -0.110],
+				[0.190, -0.155], [0.040, -0.170], [-0.120, -0.150], [-0.250, -0.100],
+				[-0.350, -0.020], [-0.435, 0.080], [-0.470, 0.190], [-0.440, 0.275],
+				[-0.345, 0.320], [-0.210, 0.318], [-0.060, 0.305], [0.080, 0.320],
+				[0.195, 0.355],
+			];
+			const neckHead = [
+				[0.195, 0.355], [0.265, 0.450], [0.345, 0.545], [0.430, 0.630],
+				[0.510, 0.695], [0.575, 0.730], [0.645, 0.735], [0.715, 0.710],
+				// The dish: these three sit below the straight line from brow to
+				// muzzle, so the face curves inward. It is the difference between a
+				// pretty head and a plain one, and it is worth three decimals.
+				[0.780, 0.608], [0.845, 0.556], [0.895, 0.515],
+				[0.932, 0.492], [0.948, 0.448], [0.930, 0.412], [0.880, 0.400],
+				[0.838, 0.418], [0.790, 0.448], [0.730, 0.480], [0.660, 0.505],
+				[0.590, 0.512], [0.520, 0.495], [0.450, 0.450], [0.385, 0.385],
+				[0.335, 0.300], [0.310, 0.210], [0.355, 0.150],
+			];
+
+
+			// ── Legs ──
+			// Mid-canter: the near fore reaching, the off fore folded under, the
+			// near hind driving back and the off hind trailing it. Each breaks at
+			// elbow, knee and fetlock — a leg drawn as one arc is a sausage.
+			const foreNear = [
+				[0.330, -0.090], [0.345, -0.230], [0.395, -0.400],
+				[0.460, -0.545], [0.500, -0.660], [0.525, -0.735],
+			];
+			const foreFar = [
+				[0.280, -0.120], [0.265, -0.260], [0.220, -0.420],
+				[0.270, -0.545], [0.340, -0.590], [0.395, -0.580],
+			];
+			const hindNear = [
+				[-0.360, -0.030], [-0.315, -0.190], [-0.430, -0.390],
+				[-0.480, -0.545], [-0.500, -0.665], [-0.515, -0.745],
+			];
+			const hindFar = [
+				[-0.295, -0.075], [-0.255, -0.225], [-0.360, -0.410],
+				[-0.380, -0.545], [-0.368, -0.650],
+			];
+
+			// ── Mane ──
+			// Five strands off the crest, streaming back over the withers. Separate
+			// paths rather than one shape, because hair reads as hair only when the
+			// strands can cross and leave sky between them.
+			const mane = [
+				[[0.568, 0.730], [0.500, 0.808], [0.408, 0.848], [0.315, 0.828], [0.248, 0.765], [0.216, 0.690]],
+				[[0.492, 0.685], [0.416, 0.760], [0.324, 0.796], [0.230, 0.776], [0.160, 0.712], [0.128, 0.635]],
+				[[0.412, 0.622], [0.328, 0.690], [0.236, 0.722], [0.144, 0.698], [0.076, 0.632], [0.046, 0.558]],
+				[[0.330, 0.535], [0.246, 0.596], [0.154, 0.624], [0.066, 0.600], [-0.002, 0.540], [-0.030, 0.470]],
+				[[0.252, 0.440], [0.172, 0.492], [0.084, 0.514], [0.000, 0.490], [-0.060, 0.434]],
+			];
+			// Forelock, falling forward off the poll between the ears.
+			const forelock = [
+				[[0.582, 0.732], [0.636, 0.726], [0.688, 0.688], [0.712, 0.634], [0.716, 0.582]],
+				[[0.566, 0.720], [0.614, 0.708], [0.658, 0.670], [0.676, 0.618]],
+			];
+
+			// ── Tail ──
+			// Five strands off the dock, carried high the way a horse carries it at
+			// speed, then falling away behind.
+			const tail = [
+				[[-0.430, 0.280], [-0.548, 0.330], [-0.672, 0.320], [-0.788, 0.242], [-0.862, 0.118]],
+				[[-0.440, 0.245], [-0.566, 0.276], [-0.696, 0.250], [-0.808, 0.150], [-0.872, 0.008]],
+				[[-0.448, 0.212], [-0.578, 0.218], [-0.708, 0.170], [-0.810, 0.046], [-0.860, -0.106]],
+				[[-0.452, 0.178], [-0.578, 0.160], [-0.700, 0.086], [-0.788, -0.052], [-0.822, -0.208]],
+				[[-0.450, 0.145], [-0.566, 0.100], [-0.672, 0.006], [-0.740, -0.142], [-0.756, -0.298]],
+			];
+			const dock = [[-0.432, 0.292], [-0.485, 0.276], [-0.522, 0.245]];
+
+			// ── Head furniture ──
+			const earNear = [
+				[0.540, 0.728], [0.526, 0.818], [0.556, 0.860], [0.580, 0.795],
+				[0.576, 0.726], [0.540, 0.728],
+			];
+			const earFar = [
+				[0.502, 0.714], [0.482, 0.792], [0.508, 0.828], [0.534, 0.770],
+				[0.534, 0.710], [0.502, 0.714],
+			];
+			// Small enough to be a mark rather than a feature. At the size this
+			// finally renders, an eye drawn to scale is a dot, and a dot is right.
+			const eye = [
+				[0.691, 0.648], [0.700, 0.657], [0.710, 0.648], [0.700, 0.639], [0.691, 0.648],
+			];
+			const nostril = [
+				[0.897, 0.498], [0.905, 0.506], [0.914, 0.499], [0.905, 0.492], [0.897, 0.498],
+			];
+			const mouth = [[0.935, 0.448], [0.900, 0.430], [0.870, 0.425]];
+			const jowl = [[0.730, 0.478], [0.706, 0.545], [0.722, 0.608]];
+			// Two interior lines doing the work a shaded drawing would: the
+			// shoulder blade, and the line off the point of the hip.
+			const shoulder = [[0.245, 0.330], [0.300, 0.205], [0.322, 0.080]];
+			const haunch = [[-0.440, 0.225], [-0.392, 0.078], [-0.352, -0.036]];
+
+			// ── Horn ──
+			// A cone leaning forward off the brow, about as long as the head, with
+			// three ridges banded across it. A drawn spiral needs the tube to leave
+			// the zy plane, which this sweep cannot do; banding it is how a
+			// sign-writer fakes the twist, and at this size it is the same picture.
+			const horn = [
+				[0.641, 0.747], [0.667, 0.862], [0.690, 0.964], [0.706, 1.035],
+				[0.696, 0.962], [0.681, 0.860], [0.663, 0.743], [0.641, 0.747],
+			];
+			const ridges = [
+				[[0.657, 0.814], [0.674, 0.821]],
+				[[0.677, 0.901], [0.687, 0.909]],
+			];
+
+			// Back to front.
+			part('tail', [...tail, dock], UNICORN_TUB * 0.7);
+			part('coatFar', [hindFar, foreFar, earFar]);
+			part('hoofFar', [hoof(hindFar), hoof(foreFar)]);
+			part('coat', [barrel, neckHead]);
+			part('coat', [hindNear, foreNear, earNear]);
+			part('hoof', [hoof(hindNear), hoof(foreNear)]);
+			part('detail', [shoulder, haunch, jowl]);
+			part('mane', [...mane, ...forelock], UNICORN_TUB * 0.7);
+			part('detail', [nostril, mouth]);
+			part('eye', [eye]);
+			part('horn', [horn]);
+			part('ridge', ridges);
+
 			for (const v of UNICORN_V3) {
 				v[0] *= UNICORN_SCALE; v[1] *= UNICORN_SCALE; v[2] *= UNICORN_SCALE;
 			}
 		}
+
+		// What each part is painted in. Passes run in order, so a wide soft pass
+		// followed by a narrow bright one draws a coloured contour with a lit core
+		// down the middle — which is the only way a white coat survives this
+		// theme's sky. #fff7fb through mint is very nearly white already, and a
+		// white line on it is an invisible line; the pink edge is what holds the
+		// shape, and the white is what makes the shape read as white.
+		//
+		// Light theme only: the dark theme flies the "21" and never asks for these.
+		const UNICORN_PAINT = {
+			tail:    [['rgba(226,74,150,0.40)', 1.5], ['rgba(255,152,201,0.95)', 0.68]],
+			mane:    [['rgba(226,74,150,0.44)', 1.5], ['rgba(255,158,205,0.98)', 0.68]],
+			// The off side is the same coat seen past the body: less contrast, more
+			// pink, so it falls behind without needing a depth buffer.
+			coatFar: [['rgba(232,148,190,0.70)', 1.3], ['rgba(253,232,243,0.95)', 0.62]],
+			coat:    [['rgba(238,134,184,0.78)', 1.6], ['rgba(255,255,255,0.98)', 0.75]],
+			hoofFar: [['rgba(206,120,170,0.65)', 1.0]],
+			hoof:    [['rgba(190,70,140,0.88)', 1.2]],
+			detail:  [['rgba(224,128,178,0.42)', 0.55]],
+			eye:     [['rgba(96,46,92,0.85)', 0.9]],
+			horn:    [['rgba(214,52,134,0.55)', 1.5], ['rgba(255,228,243,1)', 0.7]],
+			ridge:   [['rgba(214,52,134,0.72)', 0.8]],
+		};
+
 
 		// 3D math helpers
 		const v3sub = (a, b) => [a[0]-b[0], a[1]-b[1], a[2]-b[2]];
@@ -1169,22 +1340,53 @@
 				];
 			});
 
-			// Wireframe edges
-			ctx.strokeStyle = inkA(0.65);
-			ctx.lineWidth = w < 480 ? 0.7 : 1;
-			for (const [a, b] of MODEL_E3) {
-				if (!projected[a] || !projected[b]) continue;
-				ctx.beginPath();
-				ctx.moveTo(projected[a][0], projected[a][1]);
-				ctx.lineTo(projected[b][0], projected[b][1]);
-				ctx.stroke();
+			// Wireframe edges. The digits are one ink; the unicorn is painted a
+			// part at a time, back to front, each part's passes batched into a
+			// single path so a few thousand segments cost a handful of strokes
+			// rather than one stroke each.
+			const lineBase = w < 480 ? 0.7 : 1;
+			if (isLight()) {
+				ctx.save();
+				ctx.lineCap = 'round';
+				ctx.lineJoin = 'round';
+				for (const { tag, from, to } of UNICORN_PARTS) {
+					for (const [color, width] of UNICORN_PAINT[tag]) {
+						ctx.strokeStyle = color;
+						ctx.lineWidth = lineBase * width;
+						ctx.beginPath();
+						for (let i = from; i < to; i++) {
+							const [a, b] = MODEL_E3[i];
+							const pa = projected[a], pb = projected[b];
+							if (!pa || !pb) continue;
+							ctx.moveTo(pa[0], pa[1]);
+							ctx.lineTo(pb[0], pb[1]);
+						}
+						ctx.stroke();
+					}
+				}
+				ctx.restore();
+			} else {
+				ctx.strokeStyle = inkA(0.65);
+				ctx.lineWidth = lineBase;
+				for (const [a, b] of MODEL_E3) {
+					if (!projected[a] || !projected[b]) continue;
+					ctx.beginPath();
+					ctx.moveTo(projected[a][0], projected[a][1]);
+					ctx.lineTo(projected[b][0], projected[b][1]);
+					ctx.stroke();
+				}
 			}
 
-			// Glow at the number's position
-			ctx.beginPath();
-			ctx.arc(pAt[0], pAt[1], w < 480 ? 2 : 3, 0, Math.PI * 2);
-			ctx.fillStyle = inkA(0.5);
-			ctx.fill();
+			// Glow at the model's position on the arc. The unicorn is drawn centred
+			// on this same point and is big enough to cover it, so in the light
+			// theme the dot only ever showed as a blemish in the middle of the
+			// barrel — and a unicorn on the arc marks its own place well enough.
+			if (!isLight()) {
+				ctx.beginPath();
+				ctx.arc(pAt[0], pAt[1], w < 480 ? 2 : 3, 0, Math.PI * 2);
+				ctx.fillStyle = inkA(0.5);
+				ctx.fill();
+			}
 
 			frame = requestAnimationFrame(draw);
 		}
@@ -1274,18 +1476,20 @@
 	// goes back to being an ordinary visit, and the override stops overriding.
 	const UNICORN_PARAM = 'unicorn';
 
+	/** 'light' | 'dark' from the URL, or null when the link says nothing. */
 	function unicornFromUrl() {
-		if (typeof window === 'undefined') return false;
+		if (typeof window === 'undefined') return null;
 		let url;
 		try {
 			url = new URL(window.location.href);
 		} catch {
-			return false;
+			return null;
 		}
 		const raw = url.searchParams.get(UNICORN_PARAM);
-		// Present at all is enough (?unicorn), but an explicit falsey value is
-		// honoured so ?unicorn=false does not land on a unicorn.
-		if (raw === null) return false;
+		// Present at all is enough (?unicorn), and an explicit falsey value is
+		// honoured the other way: ?unicorn=false is a link to the dark theme, so
+		// the parameter overrides a stored choice in both directions.
+		if (raw === null) return null;
 		const on = raw === '' || !['false', '0', 'no', 'off'].includes(raw.toLowerCase());
 		url.searchParams.delete(UNICORN_PARAM);
 		const rest = url.searchParams.toString();
@@ -1303,7 +1507,7 @@
 				/* the URL keeps the parameter — the theme is still right */
 			}
 		}
-		return on;
+		return on ? 'light' : 'dark';
 	}
 
 	onMount(() => {
@@ -1315,7 +1519,8 @@
 		}
 		// The link beats the stored choice, and applyTheme stores it in turn —
 		// so someone sent here on a unicorn keeps the unicorn until they switch.
-		if (unicornFromUrl()) applyTheme('light');
+		const fromLink = unicornFromUrl();
+		if (fromLink) applyTheme(fromLink);
 		else if (saved === 'light' || saved === 'dark') applyTheme(saved);
 	});
 
@@ -2065,8 +2270,16 @@
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		width: 34px;
-		height: 34px;
+		width: 38px;
+		height: 38px;
+		/* The global button rule sets a wide padding and a 48px min-height for
+		   the page's real buttons. Left undeclared here they beat the width and
+		   height above — a class is more specific than the element, but only for
+		   what the class actually says — and the circle came out a 98x48 pill.
+		   Both are reset, not overridden, so the box is exactly 38 square. */
+		padding: 0;
+		min-height: 0;
+		flex: 0 0 auto;
 		font-size: 1rem;
 		line-height: 1;
 		border: 1px solid rgb(var(--ink-rgb) / 0.18);
@@ -2078,9 +2291,14 @@
 		transition: opacity 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 	}
 
+	/* The same global rule inverts a button to solid ink on hover, which turned
+	   this one into a dark plum lozenge under the cursor. Small chrome should
+	   brighten, not invert, so the two colours are restated here. */
 	.theme-toggle:hover,
 	.theme-toggle:focus-visible {
 		opacity: 1;
+		background: rgb(var(--panel-rgb) / 0.9);
+		color: var(--ink);
 		border-color: rgb(var(--ink-rgb) / 0.4);
 		transform: translateY(-1px);
 	}
