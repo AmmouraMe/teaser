@@ -513,7 +513,25 @@ module.exports = { ops };
 	// passes so it arrives pink and white rather than as a pink outline.
 	if (isLightTheme) {
 		const { unicorn, uniEdges, uniParts, uniPaint } = recorded;
-		for (const { tag, from, to } of uniParts) {
+		const rgba = (c) => {
+			const m = /rgba?\((\d+),(\d+),(\d+)(?:,([\d.]+))?\)/.exec(c);
+			return m ? [`rgb(${m[1]},${m[2]},${m[3]})`, m[4] === undefined ? '1' : m[4]] : [c, '1'];
+		};
+		for (const part of uniParts) {
+			// A filled region indexes vertices rather than edges, and lays the solid
+			// down before the outline that shares its path.
+			if (part.kind === 'fill') {
+				const pts = [];
+				for (let i = part.from; i < part.to; i++) {
+					const v = unicorn[i];
+					if (v) pts.push(`${v[0].toFixed(1)},${v[1].toFixed(1)}`);
+				}
+				if (!pts.length) continue;
+				const [col, o] = rgba(part.colour);
+				parts.push(`<polygon points="${pts.join(' ')}" fill="${col}" fill-opacity="${o}"/>`);
+				continue;
+			}
+			const { tag, from, to } = part;
 			for (const [colour, width] of uniPaint[tag]) {
 				const segs = [];
 				for (let i = from; i < to; i++) {
@@ -525,9 +543,7 @@ module.exports = { ops };
 					);
 				}
 				if (!segs.length) continue;
-				const m = /rgba?\((\d+),(\d+),(\d+)(?:,([\d.]+))?\)/.exec(colour);
-				const col = m ? `rgb(${m[1]},${m[2]},${m[3]})` : colour;
-				const o = m && m[4] !== undefined ? m[4] : '1';
+				const [col, o] = rgba(colour);
 				parts.push(
 					`<path d="${segs.join('')}" fill="none" stroke="${col}" stroke-opacity="${o}"` +
 						` stroke-width="${(width * UNI_STROKE).toFixed(2)}" stroke-linecap="round"` +

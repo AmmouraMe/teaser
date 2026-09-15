@@ -234,6 +234,14 @@
 		// the elbow, knee and fetlock rather than bending in one arc. A unicorn
 		// that is a horse with a horn reads as a unicorn; one built out of
 		// sausages reads as a toy.
+		// What the solid regions are filled with, before their outlines go on top.
+		// A white coat on this theme's near-white sky needs the pink contour to
+		// hold its edge, so the fill is barely off-white and the contour does the
+		// drawing — the fill's job is only to stop the sky showing through.
+		const COAT_FILL = 'rgba(255,252,253,0.95)';
+		const COAT_FAR_FILL = 'rgba(253,238,245,0.95)';
+		const HORN_FILL = 'rgba(255,188,222,0.97)';
+
 		const UNICORN_V3 = [];
 		const UNICORN_E3 = [];
 		// Every stroke lands in a named part, and each part is painted in its own
@@ -244,7 +252,7 @@
 		// Bigger than the digits it replaces. A unicorn carrying a jowl, a fetlock
 		// and five mane strands needs more room than a numeral does, and at the
 		// glyph's size every one of them collapsed into the outline.
-		const UNICORN_SCALE = 1.35;
+		const UNICORN_SCALE = 1.15;
 		// Finer than the digits get, and finer than the first pass used. The
 		// features that make this a horse — a jowl, a fetlock, six mane strands
 		// lying beside each other — are small next to a numeral's strokes, and at
@@ -260,7 +268,25 @@
 				for (const stroke of strokes) {
 					sweep(resample(stroke, UNI_STEP), 0, UNICORN_V3, UNICORN_E3, r);
 				}
-				UNICORN_PARTS.push({ tag, from, to: UNICORN_E3.length });
+				UNICORN_PARTS.push({ kind: 'stroke', tag, from, to: UNICORN_E3.length });
+			}
+
+			/**
+			 * A solid region under the outlines.
+			 *
+			 * The outlines alone left the unicorn hollow — sky, globe and whatever
+			 * else is behind it read straight through the barrel, which is what kept
+			 * it looking like a sign of a horse rather than a horse. The centreline
+			 * points go into the same vertex list the tubes use, so the fill rides
+			 * the same projection and cannot drift from its own outline.
+			 *
+			 * Indexes into UNICORN_V3, where a stroke part indexes into UNICORN_E3;
+			 * `kind` is how the draw loop tells the two apart.
+			 */
+			function fill(colour, path) {
+				const from = UNICORN_V3.length;
+				for (const [z, y] of path) UNICORN_V3.push([0, y, z]);
+				UNICORN_PARTS.push({ kind: 'fill', colour, from, to: UNICORN_V3.length });
 			}
 
 			/** A hoof: a small box squared onto the end of a leg, along its last
@@ -290,10 +316,10 @@
 			// withers and rise again over the croup, and the underline has to run
 			// deep at the girth and tuck up at the flank, or none of it is a horse.
 			const barrel = [
-				[0.355, 0.150], [0.370, 0.060], [0.355, -0.030], [0.300, -0.110],
-				[0.190, -0.155], [0.040, -0.170], [-0.120, -0.150], [-0.250, -0.100],
-				[-0.350, -0.020], [-0.435, 0.080], [-0.470, 0.190], [-0.440, 0.275],
-				[-0.345, 0.320], [-0.210, 0.318], [-0.060, 0.305], [0.080, 0.320],
+				[0.355, 0.150], [0.372, 0.055], [0.360, -0.045], [0.310, -0.140],
+				[0.195, -0.200], [0.040, -0.218], [-0.125, -0.196], [-0.258, -0.140],
+				[-0.362, -0.048], [-0.452, 0.068], [-0.492, 0.188], [-0.458, 0.282],
+				[-0.352, 0.334], [-0.212, 0.332], [-0.060, 0.315], [0.080, 0.328],
 				[0.195, 0.355],
 			];
 			const neckHead = [
@@ -304,9 +330,9 @@
 				// pretty head and a plain one, and it is worth three decimals.
 				[0.780, 0.608], [0.845, 0.556], [0.895, 0.515],
 				[0.932, 0.492], [0.948, 0.448], [0.930, 0.412], [0.880, 0.400],
-				[0.838, 0.418], [0.790, 0.448], [0.730, 0.480], [0.660, 0.505],
-				[0.590, 0.512], [0.520, 0.495], [0.450, 0.450], [0.385, 0.385],
-				[0.335, 0.300], [0.310, 0.210], [0.355, 0.150],
+				[0.838, 0.418], [0.790, 0.448], [0.730, 0.478], [0.662, 0.498],
+				[0.594, 0.486], [0.524, 0.462], [0.452, 0.414], [0.386, 0.345],
+				[0.334, 0.258], [0.312, 0.178], [0.355, 0.150],
 			];
 
 
@@ -315,20 +341,20 @@
 			// near hind driving back and the off hind trailing it. Each breaks at
 			// elbow, knee and fetlock — a leg drawn as one arc is a sausage.
 			const foreNear = [
-				[0.330, -0.090], [0.345, -0.230], [0.395, -0.400],
-				[0.460, -0.545], [0.500, -0.660], [0.525, -0.735],
+				[0.330, -0.150], [0.344, -0.258], [0.394, -0.406],
+				[0.456, -0.526], [0.494, -0.622], [0.518, -0.686],
 			];
 			const foreFar = [
-				[0.280, -0.120], [0.265, -0.260], [0.220, -0.420],
-				[0.270, -0.545], [0.340, -0.590], [0.395, -0.580],
+				[0.278, -0.176], [0.264, -0.292], [0.220, -0.420],
+				[0.268, -0.522], [0.334, -0.558], [0.386, -0.550],
 			];
 			const hindNear = [
-				[-0.360, -0.030], [-0.315, -0.190], [-0.430, -0.390],
-				[-0.480, -0.545], [-0.500, -0.665], [-0.515, -0.745],
+				[-0.372, -0.068], [-0.322, -0.210], [-0.438, -0.388],
+				[-0.486, -0.522], [-0.506, -0.628], [-0.520, -0.700],
 			];
 			const hindFar = [
-				[-0.295, -0.075], [-0.255, -0.225], [-0.360, -0.410],
-				[-0.380, -0.545], [-0.368, -0.650],
+				[-0.305, -0.112], [-0.266, -0.244], [-0.368, -0.404],
+				[-0.386, -0.520], [-0.374, -0.614],
 			];
 
 			// ── Mane ──
@@ -398,17 +424,34 @@
 				[[0.677, 0.901], [0.687, 0.909]],
 			];
 
+			// The silhouette as one closed loop. The barrel runs chest to withers and
+			// the neck carries on from the withers back round to the chest, so laid
+			// end to end they already close — which is why neither had to cut a
+			// chord across the body to shut itself.
+			const silhouette = [...barrel, ...neckHead];
+
 			// Back to front.
+			//
+			// All four legs go down before the body does, not just the off pair. In
+			// profile every leg leaves the barrel behind its own silhouette, so the
+			// fill covering their tops is what the animal actually looks like; the
+			// near pair is told apart by its paint, not by its order.
 			part('tail', [...tail, dock], UNICORN_TUB * 0.7);
-			part('coatFar', [hindFar, foreFar, earFar]);
+			part('coatFar', [hindFar, foreFar]);
 			part('hoofFar', [hoof(hindFar), hoof(foreFar)]);
-			part('coat', [barrel, neckHead]);
-			part('coat', [hindNear, foreNear, earNear]);
+			part('coat', [hindNear, foreNear]);
 			part('hoof', [hoof(hindNear), hoof(foreNear)]);
+			fill(COAT_FAR_FILL, earFar);
+			part('coatFar', [earFar]);
+			fill(COAT_FILL, silhouette);
+			part('coat', [barrel, neckHead]);
+			fill(COAT_FILL, earNear);
+			part('coat', [earNear]);
 			part('detail', [shoulder, haunch, jowl]);
 			part('mane', [...mane, ...forelock], UNICORN_TUB * 0.7);
 			part('detail', [nostril, mouth]);
 			part('eye', [eye]);
+			fill(HORN_FILL, horn);
 			part('horn', [horn]);
 			part('ridge', ridges);
 
@@ -431,12 +474,12 @@
 			// The off side is the same coat seen past the body: less contrast, more
 			// pink, so it falls behind without needing a depth buffer.
 			coatFar: [['rgba(232,148,190,0.70)', 1.3], ['rgba(253,232,243,0.95)', 0.62]],
-			coat:    [['rgba(238,134,184,0.78)', 1.6], ['rgba(255,255,255,0.98)', 0.75]],
+			coat:    [['rgba(236,124,178,0.88)', 1.6], ['rgba(255,255,255,0.98)', 0.7]],
 			hoofFar: [['rgba(206,120,170,0.65)', 1.0]],
 			hoof:    [['rgba(190,70,140,0.88)', 1.2]],
 			detail:  [['rgba(224,128,178,0.42)', 0.55]],
 			eye:     [['rgba(96,46,92,0.85)', 0.9]],
-			horn:    [['rgba(214,52,134,0.55)', 1.5], ['rgba(255,228,243,1)', 0.7]],
+			horn:    [['rgba(206,44,128,0.82)', 1.3]],
 			ridge:   [['rgba(214,52,134,0.72)', 0.8]],
 		};
 
@@ -1354,12 +1397,27 @@
 				ctx.save();
 				ctx.lineCap = 'round';
 				ctx.lineJoin = 'round';
-				for (const { tag, from, to } of UNICORN_PARTS) {
-					for (const [color, width] of UNICORN_PAINT[tag]) {
+				for (const p of UNICORN_PARTS) {
+					// A filled region: its indices are vertices, not edges, and it
+					// goes down before the outline that shares its path.
+					if (p.kind === 'fill') {
+						ctx.fillStyle = p.colour;
+						ctx.beginPath();
+						let started = false;
+						for (let i = p.from; i < p.to; i++) {
+							const v = projected[i];
+							if (!v) continue;
+							if (started) ctx.lineTo(v[0], v[1]);
+							else { ctx.moveTo(v[0], v[1]); started = true; }
+						}
+						if (started) { ctx.closePath(); ctx.fill(); }
+						continue;
+					}
+					for (const [color, width] of UNICORN_PAINT[p.tag]) {
 						ctx.strokeStyle = color;
 						ctx.lineWidth = lineBase * width;
 						ctx.beginPath();
-						for (let i = from; i < to; i++) {
+						for (let i = p.from; i < p.to; i++) {
 							const [a, b] = MODEL_E3[i];
 							const pa = projected[a], pb = projected[b];
 							if (!pa || !pb) continue;
