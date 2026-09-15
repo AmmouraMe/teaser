@@ -32,11 +32,13 @@ export const DISCORD_URL = 'https://discord.gg/dPRvKFS9dq';
  * site are the same organisation. Adding a network means adding an entry here
  * and its icon in the page's SOCIAL_ICON map — nothing else.
  *
- * Deliberately short. These are the two that exist; an icon linking to an
- * account nobody is running is worse than no icon.
+ * These are the accounts that exist. An icon linking to an account nobody is
+ * running is worse than no icon, so nothing speculative belongs here.
  */
 export const SOCIAL_LINKS = [
 	{ id: 'discord', label: 'Discord', href: DISCORD_URL },
+	{ id: 'x', label: 'X', href: 'https://x.com/AmmouraMe' },
+	{ id: 'youtube', label: 'YouTube', href: 'https://www.youtube.com/@AmmouraMe' },
 	{ id: 'github', label: 'GitHub', href: 'https://github.com/AmmouraMe' }
 ];
 
