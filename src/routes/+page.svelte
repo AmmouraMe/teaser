@@ -12,7 +12,12 @@
 		CAPABILITIES,
 		LAUNCH_ISO,
 		DISCORD_URL,
-		OG_IMAGE_PATH
+		OG_IMAGE_PATH,
+		OG_IMAGE_UNICORN_PATH,
+		OG_IMAGE_ALT,
+		OG_IMAGE_UNICORN_ALT,
+		UNICORN_PARAM,
+		unicornRequested
 	} from '$lib/seo.js';
 
 	// The countdown target is LAUNCH_ISO itself. It used to be a second copy of
@@ -1395,6 +1400,14 @@
 		return () => { if (frame) cancelAnimationFrame(frame); };
 	});
 
+	// Which face of the page a link opens on, decided from the request URL so a
+	// crawler — which runs no JavaScript and carries no stored theme — is handed
+	// the card that matches what a person following the link will actually see.
+	// Read from $page rather than window, because the decision has to survive
+	// server rendering; by the time the browser has stripped the parameter the
+	// <head> has already been written.
+	const shareLight = $derived(unicornRequested($page.url.searchParams) === 'light');
+
 	// Title leads with what this is rather than the slogan. "Build Your Empire"
 	// alone told a search result nothing, and the slogan already owns the page.
 	const siteTitle = 'Ammoura — Website and Online Store Builder';
@@ -1474,7 +1487,10 @@
 	// only found. It wins over the stored choice once, then the parameter is
 	// stripped from the URL: a reload, a bookmark or a shared copy of the link
 	// goes back to being an ordinary visit, and the override stops overriding.
-	const UNICORN_PARAM = 'unicorn';
+	//
+	// The parameter's name and its parsing live in seo.js, because the <head>
+	// reads it too — to pick which social card the link shows — and a link that
+	// previews a unicorn then opens on the dark theme is worse than no override.
 
 	/** 'light' | 'dark' from the URL, or null when the link says nothing. */
 	function unicornFromUrl() {
@@ -1485,12 +1501,8 @@
 		} catch {
 			return null;
 		}
-		const raw = url.searchParams.get(UNICORN_PARAM);
-		// Present at all is enough (?unicorn), and an explicit falsey value is
-		// honoured the other way: ?unicorn=false is a link to the dark theme, so
-		// the parameter overrides a stored choice in both directions.
-		if (raw === null) return null;
-		const on = raw === '' || !['false', '0', 'no', 'off'].includes(raw.toLowerCase());
+		const want = unicornRequested(url.searchParams);
+		if (want === null) return null;
 		url.searchParams.delete(UNICORN_PARAM);
 		const rest = url.searchParams.toString();
 		const clean = `${url.pathname}${rest ? `?${rest}` : ''}${url.hash}`;
@@ -1507,7 +1519,7 @@
 				/* the URL keeps the parameter — the theme is still right */
 			}
 		}
-		return on ? 'light' : 'dark';
+		return want;
 	}
 
 	onMount(() => {
@@ -2044,6 +2056,9 @@
 	description={SITE_DESCRIPTION}
 	path="/"
 	schema={launchSchema}
+	image={shareLight ? OG_IMAGE_UNICORN_PATH : OG_IMAGE_PATH}
+	imageAlt={shareLight ? OG_IMAGE_UNICORN_ALT : OG_IMAGE_ALT}
+	ogUrl={shareLight ? `${SITE_URL}/?${UNICORN_PARAM}=true` : null}
 />
 
 <!-- The theme switch. Small and quiet, but it sits in the top right where a

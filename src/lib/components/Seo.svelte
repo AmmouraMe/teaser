@@ -32,14 +32,32 @@
 		/** og:type — "website" for the home page, "article" reads wrong for legal text. */
 		ogType = 'website',
 		/** Extra JSON-LD nodes to merge into the @graph. */
-		schema = []
+		schema = [],
+		/**
+		 * The social card, as a site-absolute path. Defaults to the dark card;
+		 * the home page swaps in the light one when the link asked for it.
+		 */
+		image = OG_IMAGE_PATH,
+		/** Alt text for that card. */
+		imageAlt = OG_IMAGE_ALT,
+		/**
+		 * What the card belongs to, when that is not the canonical URL.
+		 *
+		 * The theme override lives in the query string, and canonical deliberately
+		 * drops it — one page should not compete with itself in search over a
+		 * decoration. But a crawler that folds a share onto og:url would then show
+		 * the dark card for a link that opens light, so og:url keeps the parameter
+		 * even where canonical does not.
+		 */
+		ogUrl = null
 	} = $props();
 
 	// Canonical URLs are absolute and built from the production origin rather
 	// than the request origin, so a preview deployment cannot advertise itself
 	// as the canonical copy and split the ranking.
 	const canonical = $derived(path === '/' ? SITE_URL + '/' : SITE_URL + path);
-	const ogImageUrl = SITE_URL + OG_IMAGE_PATH;
+	const shareUrl = $derived(ogUrl ?? canonical);
+	const ogImageUrl = $derived(SITE_URL + image);
 
 	const graph = $derived([
 		{
@@ -66,7 +84,7 @@
 			url: ogImageUrl,
 			width: OG_IMAGE_WIDTH,
 			height: OG_IMAGE_HEIGHT,
-			caption: OG_IMAGE_ALT
+			caption: imageAlt
 		},
 		...schema
 	]);
@@ -83,7 +101,7 @@
 
 	<!-- Open Graph -->
 	<meta property="og:type" content={ogType} />
-	<meta property="og:url" content={canonical} />
+	<meta property="og:url" content={shareUrl} />
 	<meta property="og:title" content={title} />
 	<meta property="og:description" content={description} />
 	<meta property="og:image" content={ogImageUrl} />
@@ -91,18 +109,18 @@
 	<meta property="og:image:type" content={OG_IMAGE_TYPE} />
 	<meta property="og:image:width" content={String(OG_IMAGE_WIDTH)} />
 	<meta property="og:image:height" content={String(OG_IMAGE_HEIGHT)} />
-	<meta property="og:image:alt" content={OG_IMAGE_ALT} />
+	<meta property="og:image:alt" content={imageAlt} />
 	<meta property="og:site_name" content={SITE_NAME} />
 	<meta property="og:locale" content="en_US" />
 
 	<!-- Twitter / X. No site or creator handle: there is no Ammoura account yet,
 	     and pointing at one that does not exist is worse than omitting it. -->
 	<meta name="twitter:card" content="summary_large_image" />
-	<meta name="twitter:url" content={canonical} />
+	<meta name="twitter:url" content={shareUrl} />
 	<meta name="twitter:title" content={title} />
 	<meta name="twitter:description" content={description} />
 	<meta name="twitter:image" content={ogImageUrl} />
-	<meta name="twitter:image:alt" content={OG_IMAGE_ALT} />
+	<meta name="twitter:image:alt" content={imageAlt} />
 
 	<!-- Structured data -->
 	{@html `<script type="application/ld+json">${JSON.stringify({

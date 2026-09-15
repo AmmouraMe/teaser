@@ -103,3 +103,42 @@ export const LAUNCH_LABEL = new Intl.DateTimeFormat('en-GB', {
 
 export const OG_IMAGE_ALT = `Ammoura — Build Your Empire. Launching ${LAUNCH_LABEL}.`;
 export const OG_IMAGE_TYPE = 'image/png';
+
+/**
+ * The light theme's card, for links that ask for it.
+ *
+ * The page has two faces and the share card should be a portrait of the one the
+ * link opens on. Both are built by `scripts/build-og.mjs` from the hero's own
+ * drawing code, so neither can drift from the page.
+ */
+export const OG_IMAGE_UNICORN_PATH = '/og-unicorn.png';
+export const OG_IMAGE_UNICORN_ALT =
+	`Ammoura — Build Your Empire. A unicorn over a candy mountain. Launching ${LAUNCH_LABEL}.`;
+
+/**
+ * The query parameter that overrides the stored theme.
+ *
+ * `?unicorn=true` opens on the light theme whatever the visitor last chose, and
+ * `?unicorn=false` on the dark one. The page strips it on load, so a reload or
+ * a shared copy of the link is an ordinary visit again.
+ *
+ * It lives here because two different things read it and they must agree: the
+ * page, which applies the theme, and the <head>, which picks the social card. A
+ * link that shows a unicorn in Discord and then opens on the dark theme is
+ * worse than having no override at all.
+ */
+export const UNICORN_PARAM = 'unicorn';
+
+/**
+ * Read the override out of a URLSearchParams.
+ *
+ * @returns 'light' or 'dark' when the link asks for one, otherwise null.
+ */
+export function unicornRequested(searchParams) {
+	const raw = searchParams?.get?.(UNICORN_PARAM);
+	if (raw === null || raw === undefined) return null;
+	// Present at all is enough (`?unicorn`), and an explicit falsey value is
+	// honoured the other way, so the parameter overrides in both directions.
+	const on = raw === '' || !['false', '0', 'no', 'off'].includes(raw.toLowerCase());
+	return on ? 'light' : 'dark';
+}
