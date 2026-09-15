@@ -63,15 +63,32 @@
 
 	let trackStarted = $state(false);
 
-	function getFlightProgress() {
-		if (trackStarted && audioEl) {
-			const d = audioEl.duration;
-			if (Number.isFinite(d) && d > 0) {
-				return Math.max(0, Math.min(1, audioEl.currentTime / d));
-			}
-		}
-		// Otherwise the arc is the real countdown: March 22 → launch.
+	/** Where the arc puts the creature when nothing is playing: the real
+	    countdown, March 22 → launch. This is its post. */
+	function countdownProgress() {
 		return Math.max(0, Math.min(1, (Date.now() - FLIGHT_START) / (TARGET - FLIGHT_START)));
+	}
+
+	// How much of the arc the track owns: 1 while it plays, 0 when the countdown
+	// has it back. Eased rather than switched, because the two positions are a
+	// long way apart — pressing play used to teleport the glyph to the start of
+	// the arc, and stopping used to teleport it back. Now it flies.
+	let flightMix = 0;
+	// Where the track last had it. Once the track is no longer being read, this
+	// is the point the return flight leaves from.
+	let flightHeld = 0;
+	const FLIGHT_TAKE = 0.05;
+	const FLIGHT_RETURN = 0.022;
+
+	function getFlightProgress() {
+		const countdown = countdownProgress();
+		const d = audioEl?.duration;
+		if (trackStarted && Number.isFinite(d) && d > 0) {
+			flightHeld = Math.max(0, Math.min(1, audioEl.currentTime / d));
+		}
+		const want = playing ? 1 : 0;
+		flightMix += (want - flightMix) * (want > flightMix ? FLIGHT_TAKE : FLIGHT_RETURN);
+		return countdown + (flightHeld - countdown) * flightMix;
 	}
 
 	onMount(() => {
@@ -1064,7 +1081,6 @@
 			ctx.clearRect(0, 0, w, h);
 
 			const { P0, P1, P2, towerBaseX, towerBaseY } = getArcPoints(w, h);
-			const t = getFlightProgress();
 			const N = 120;
 
 			// Plane scale: responsive
@@ -1086,6 +1102,11 @@
 			gallopMix +=
 				(running - gallopMix) * (running > gallopMix ? GALLOP_SPIN_UP : GALLOP_WIND_DOWN);
 			gallopPhase += dt * gallopMix * (GALLOP_RATE + GALLOP_RATE_DRIVE * level);
+
+			// Where along the arc it is. Read here rather than at the top of the
+			// frame because it advances an easing of its own, and it should do that
+			// once per frame alongside the others.
+			const t = getFlightProgress();
 
 			// readLevel() has just refreshed freqData, so the bars are free.
 			updateEqBars(playing);
@@ -2003,12 +2024,15 @@
 		if (audioCtx?.state === 'suspended') audioCtx.resume();
 	}
 
-	// Paused mid-track: hold the number where it is rather than snapping back.
+	// Paused mid-track. The arc goes back to the countdown either way — stopping
+	// the music puts the creature back on its post — and getFlightProgress eases
+	// the handover, so this only has to say the track is no longer playing.
 	function onPause() {
 		playing = false;
 	}
 
-	// Track finished: the number has landed. Hand the arc back to the countdown.
+	// Track finished: it has landed. Clearing trackStarted stops the audio
+	// position being read at all, so the return flies from where it landed.
 	function onEnded() {
 		playing = false;
 		trackStarted = false;
