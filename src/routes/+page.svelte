@@ -1,6 +1,7 @@
 <script>
 	import { enhance } from '$app/forms';
 	import { page } from '$app/stores';
+	import { replaceState } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import Seo from '$lib/components/Seo.svelte';
 	import {
@@ -1266,6 +1267,45 @@
 		applyTheme(isLight() ? 'dark' : 'light');
 	}
 
+	// ammoura.me/?unicorn=true — a link that lands on the light theme whatever
+	// the visitor chose before, so the joke can be shown to someone rather than
+	// only found. It wins over the stored choice once, then the parameter is
+	// stripped from the URL: a reload, a bookmark or a shared copy of the link
+	// goes back to being an ordinary visit, and the override stops overriding.
+	const UNICORN_PARAM = 'unicorn';
+
+	function unicornFromUrl() {
+		if (typeof window === 'undefined') return false;
+		let url;
+		try {
+			url = new URL(window.location.href);
+		} catch {
+			return false;
+		}
+		const raw = url.searchParams.get(UNICORN_PARAM);
+		// Present at all is enough (?unicorn), but an explicit falsey value is
+		// honoured so ?unicorn=false does not land on a unicorn.
+		if (raw === null) return false;
+		const on = raw === '' || !['false', '0', 'no', 'off'].includes(raw.toLowerCase());
+		url.searchParams.delete(UNICORN_PARAM);
+		const rest = url.searchParams.toString();
+		const clean = `${url.pathname}${rest ? `?${rest}` : ''}${url.hash}`;
+		// Stripping the parameter is the nicety; landing on the unicorn is the
+		// job. replaceState throws if the router is not up yet, and an
+		// unhandled throw here would take the whole theme restore with it — so
+		// the failure costs a parameter left in the address bar, nothing more.
+		try {
+			replaceState(clean, {});
+		} catch {
+			try {
+				history.replaceState(history.state, '', clean);
+			} catch {
+				/* the URL keeps the parameter — the theme is still right */
+			}
+		}
+		return on;
+	}
+
 	onMount(() => {
 		let saved = null;
 		try {
@@ -1273,7 +1313,10 @@
 		} catch {
 			/* nothing stored, or storage refused */
 		}
-		if (saved === 'light' || saved === 'dark') applyTheme(saved);
+		// The link beats the stored choice, and applyTheme stores it in turn —
+		// so someone sent here on a unicorn keeps the unicorn until they switch.
+		if (unicornFromUrl()) applyTheme('light');
+		else if (saved === 'light' || saved === 'dark') applyTheme(saved);
 	});
 
 	let audioEl = $state();
@@ -1798,6 +1841,18 @@
 	schema={launchSchema}
 />
 
+<!-- The theme switch. Small and quiet, but it sits in the top right where a
+     site control is looked for — the light theme should be findable without
+     being the first decision the page asks a visitor to make. -->
+<button class="theme-toggle" type="button" onclick={toggleTheme}
+	aria-pressed={theme === 'light'}
+	title={theme === 'light' ? 'Back to the dark side' : 'Somewhere over the rainbow'}>
+	<span aria-hidden="true">{theme === 'light' ? '\u{1F319}' : '\u{1F984}'}</span>
+	<span class="theme-toggle-label">
+		{theme === 'light' ? 'Switch to the dark theme' : 'Switch to the light theme'}
+	</span>
+</button>
+
 <main>
 	{#if !submitted}
 		<section class="hero">
@@ -1808,7 +1863,12 @@
 			     The setup line sits back so the second one lands as the punch. -->
 			<h1>
 				<span class="setup">We don't sell dreams.</span>
-				<span class="punch">We give you the tools to <em>crush</em> them.</span>
+				<!-- The punch is the joke, and the unicorn theme is the gentle side of
+				     it: the dark page hands you the tools to crush a dream, the light
+				     one hands you the same tools to realize it. Same sentence, same
+				     shape, opposite temperature. -->
+				<span class="punch">We give you the tools to
+					<em>{theme === 'light' ? 'realize' : 'crush'}</em> them.</span>
 			</h1>
 			<p class="hint">A website, a storefront, and everything behind them.</p>
 
@@ -1925,18 +1985,6 @@
 	<span class="built-brand">*Space</span>
 </a>
 
-<!-- The theme switch. Deliberately small and in the footer rather than up in
-     the hero: the light theme is a thing to find, not the first decision the
-     page asks a visitor to make. -->
-<button class="theme-toggle" type="button" onclick={toggleTheme}
-	aria-pressed={theme === 'light'}
-	title={theme === 'light' ? 'Back to the dark side' : 'Somewhere over the rainbow'}>
-	<span aria-hidden="true">{theme === 'light' ? '\u{1F319}' : '\u{1F984}'}</span>
-	<span class="theme-toggle-label">
-		{theme === 'light' ? 'Switch to the dark theme' : 'Switch to the light theme'}
-	</span>
-</button>
-
 <footer class="site-footer">
 	<a href="/privacy">Privacy Policy</a>
 	<span aria-hidden="true">&middot;</span>
@@ -2005,12 +2053,14 @@
 
 
 	/* ── Theme switch ──
-	   Sits opposite the "built at" pill, matching its shape so the two read as a
-	   pair of footnotes rather than as a control bolted on. */
+	   Top right, the corner a site control is looked for. It keeps the shape of
+	   the "built at" pill so it reads as the same family of small chrome. The
+	   safe-area insets matter here: on a notched phone in landscape the right
+	   inset is real, and 1rem alone puts the button under the cutout. */
 	.theme-toggle {
 		position: fixed;
-		left: 1rem;
-		bottom: 3.4rem;
+		right: calc(1rem + env(safe-area-inset-right, 0px));
+		top: calc(1rem + env(safe-area-inset-top, 0px));
 		z-index: 5;
 		display: inline-flex;
 		align-items: center;
@@ -2050,7 +2100,8 @@
 	   same either way; only --halo-rgb changed. */
 	@media (max-width: 560px) {
 		.theme-toggle {
-			bottom: 4.2rem;
+			right: calc(0.75rem + env(safe-area-inset-right, 0px));
+			top: calc(0.75rem + env(safe-area-inset-top, 0px));
 		}
 	}
 
