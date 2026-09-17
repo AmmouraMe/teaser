@@ -21,6 +21,7 @@
 <script>
 	import { onMount } from 'svelte';
 	import Seo from '$lib/components/Seo.svelte';
+	import NetIntro from './NetIntro.svelte';
 
 	// ── The name ──
 	const NAME = [
@@ -88,6 +89,8 @@
 		};
 	}
 
+	const pool = POOL;
+
 	const rand = seeded(1792);
 	const wall = Array.from({ length: 11 }, () =>
 		Array.from({ length: 34 }, () => POOL[Math.floor(rand() * POOL.length)]).join('')
@@ -101,6 +104,14 @@
 	// handler, so it costs nothing while nothing is happening. Skipped whole for
 	// anyone who asked for less motion, which is why the class is set in JS: no
 	// script, no hidden content.
+	// The cold open runs over the top of the page. While it is up the page
+	// underneath does not scroll, so the sequence cannot be scrolled out from
+	// behind — see `.held` below.
+	let intro = $state(true);
+	function introDone() {
+		intro = false;
+	}
+
 	let reveal = $state(false);
 	onMount(() => {
 		if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
@@ -127,7 +138,9 @@
 	path="/hammurabi"
 />
 
-<div class="room" class:reveal>
+<NetIntro signs={NAME} {pool} done={introDone} />
+
+<div class="room" class:reveal class:held={intro}>
 	<!-- The wall. Texture, not text. -->
 	<div class="wall" aria-hidden="true">
 		{#each wall as row, i}
@@ -373,6 +386,14 @@
 		.room {
 			--fs: 1.9;
 		}
+	}
+
+	/* Held still while the intro is over it. Without this the page can be
+	   scrolled behind the overlay, and the sequence tears away to reveal
+	   somewhere halfway down. */
+	.held {
+		max-height: 100vh;
+		overflow: hidden;
 	}
 
 	/* ── The wall ──
