@@ -2440,6 +2440,16 @@
 	<span class="built-brand">*Space</span>
 </a>
 
+<!-- ḫa-am-mu-ra-bi, where the name came from. Deliberately unlabelled and
+     nearly out of sight above the legal links: it is for whoever is curious
+     enough to hover a mark they do not recognise. The accessible name is not
+     hidden, so a screen reader announces it plainly rather than reading five
+     cuneiform signs out as nothing. -->
+<a class="origin" href="/hammurabi" aria-label="Where the Ammoura name came from"
+	title="𒄩𒄠𒈬𒊏𒁉">
+	<span aria-hidden="true">𒄩𒄠𒈬𒊏𒁉</span>
+</a>
+
 <footer class="site-footer">
 	<a href="/privacy">Privacy Policy</a>
 	<span aria-hidden="true">&middot;</span>
@@ -2923,6 +2933,52 @@
 		.social {
 			width: 44px;
 			height: 44px;
+		}
+	}
+
+	/* ── The mark in the corner ──
+	   Sits just above the legal links, at an opacity that reads as a smudge in
+	   the stone until it is looked at. The cuneiform needs its own font: these
+	   characters are empty boxes on most machines, and a row of tofu is not
+	   subtle, it is broken. */
+	@font-face {
+		font-family: 'Ammoura Cuneiform';
+		src: url('/fonts/cuneiform-subset.woff2') format('woff2');
+		font-display: swap;
+		unicode-range: U+12000-123FF;
+	}
+
+	.origin {
+		position: fixed;
+		right: calc(1.25rem + env(safe-area-inset-right, 0px));
+		bottom: calc(2.9rem + env(safe-area-inset-bottom, 0px));
+		z-index: 10;
+		font-family: 'Ammoura Cuneiform', 'Noto Sans Cuneiform', serif;
+		font-size: 0.95rem;
+		line-height: 1;
+		letter-spacing: 0.08em;
+		color: var(--ink);
+		opacity: 0.16;
+		text-decoration: none;
+		transition: opacity 0.35s ease, color 0.35s ease;
+	}
+
+	/* Not the theme accent: that is green in the dark theme, and green cuneiform
+	   is a puzzle. A warm ochre says where the link goes, and it is legible on
+	   both black and a pale pink sky. */
+	.origin:hover,
+	.origin:focus-visible {
+		opacity: 0.9;
+		color: #e0863a;
+	}
+
+	/* The legal links stack into two lines on a phone, so the mark has to clear
+	   a taller footer than the one it clears on a desktop. */
+	@media (max-width: 560px) {
+		.origin {
+			right: calc(0.9rem + env(safe-area-inset-right, 0px));
+			bottom: calc(4.6rem + env(safe-area-inset-bottom, 0px));
+			font-size: 0.85rem;
 		}
 	}
 

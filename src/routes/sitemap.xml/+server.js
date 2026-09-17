@@ -14,6 +14,7 @@ export function GET() {
 	// that gets a sitemap discounted.
 	const pages = [
 		{ loc: '/', priority: '1.0', changefreq: 'daily', lastmod: '2026-08-26' },
+		{ loc: '/hammurabi', priority: '0.4', changefreq: 'yearly', lastmod: '2026-09-17' },
 		{ loc: '/privacy', priority: '0.3', changefreq: 'yearly', lastmod: LEGAL_UPDATED },
 		{ loc: '/terms', priority: '0.3', changefreq: 'yearly', lastmod: LEGAL_UPDATED }
 	];
