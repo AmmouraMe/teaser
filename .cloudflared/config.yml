@@ -3,7 +3,7 @@ credentials-file: /home/davis9001/.cloudflared/22fe58c9-1857-4a1b-a2c3-ea991081c
 
 ingress:
   - hostname: ammoura-dev.starspace.group
-    service: http://localhost:4297
+    service: http://localhost:4237
     originRequest:
       noTLSVerify: true
   - service: http_status:404
