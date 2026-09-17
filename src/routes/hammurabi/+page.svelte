@@ -6,10 +6,18 @@
 	look rather than either of the site's two themes: a dark room, one warm
 	light, and a wall of writing nobody in it can read.
 
-	Two kinds of cuneiform here, and the difference matters:
+	Three kinds of cuneiform here, and the differences matter:
 
 	- The signs that are LABELLED are real, and the readings given for them are
 	  the standard ones. The five in the name spell ḫa-am-mu-ra-bi.
+	- The TABLET at the top of the essay is this page, letter for sign, through
+	  one fixed key (36 signs from the same subset). A cipher, not Akkadian —
+	  English has no syllabary and the page does not pretend otherwise. It is
+	  real text in the DOM, first, so Safari's reader and a screen reader meet
+	  the page's own words in cuneiform and then the English (David,
+	  2026-09-17: "I want the reader to keep showing that but with real text
+	  from the page, then on scroll down the English version"). Before this the
+	  reader picked up the decorative wall and skipped the essay.
 	- The wall behind everything is TEXTURE — the same real signs, shuffled. It
 	  is the look of an inscription, not a sentence. It is aria-hidden, it says
 	  nothing, and nothing on the page claims otherwise.
@@ -78,6 +86,63 @@
 		'𒄭', '𒁾', '𒀊', '𒂆'
 	];
 
+	// ── The essay, as data ──
+	// One source for both renderings: the tablet transliterates these strings,
+	// the English sections print them. Light HTML is allowed; the cipher strips
+	// tags, diacritics and punctuation before it looks anything up.
+	const ESSAY = {
+		lede: 'Ammoura is named after a man who has been dead for about three thousand seven hundred and seventy years.',
+		intro: 'Hammurabi was the sixth king of Babylon and reigned from around 1792 to 1750 BC. He was an Amorite, and in his own language his name was <em>ʻAmmurāpi</em>. It is built out of two ordinary words.',
+		parts: 'ʻAmmu, paternal kinsman. Rāpi, healer. The kinsman is a healer.',
+		why: {
+			h: 'Why him',
+			ps: [
+				'Not for the conquests, though there were plenty — Larsa, Eshnunna, Mari, nearly all of Mesopotamia under one rule by the end. Those are the part of him the centuries quietly dropped.',
+				'What they kept is a block of basalt taller than a man, carved with two hundred and eighty-two laws, and <strong>set up in public</strong>. That last part is the whole of it. Before, the rules lived with the people who enforced them, and you found out what they were by breaking one. Cutting them into stone in the open changed who was allowed to know.',
+				'That is the idea this company is named after. The tools for building a business have mostly belonged to people who could already afford them. We would rather put them where you can reach them.'
+			]
+		},
+		stone: {
+			h: 'What happened to the stone',
+			p: 'It was looted. The Elamites carried it off to Susa, in what is now Iran, and there it stayed, face-down in the dirt, for something like twenty-six centuries. It was dug up in 1901. It stands in the Louvre today, and the laws on it are still legible.',
+			caption: 'Two and a quarter metres of basalt. Two hundred and eighty-two laws, and a relief at the head of it showing the king receiving them from Shamash — <span lang="akk">𒌓</span>, the sun.'
+		},
+		close: 'The name kept the middle of his and let the rest go. <em>ʻAmm<strong>ura</strong>pi.</em> Ammoura.'
+	};
+
+	// ── The key ──
+	// Twenty-six letters and ten digits, every sign from the 52-sign subset the
+	// wall already loads, so nothing new has to be served. Fixed for good: a
+	// key that changes is a page whose reader-mode text silently changes.
+	const KEY = {
+		a: '𒀀', b: '𒁀', c: '𒆠', d: '𒁲', e: '𒂍', f: '𒄑', g: '𒃲', h: '𒄩', i: '𒅆',
+		j: '𒍢', k: '𒅗', l: '𒇻', m: '𒈬', n: '𒈾', o: '𒌓', p: '𒁉', q: '𒆪', r: '𒊏',
+		s: '𒊭', t: '𒋛', u: '𒌅', v: '𒌨', w: '𒉡', x: '𒐊', y: '𒉌', z: '𒍝',
+		0: '𒁹', 1: '𒀸', 2: '𒁕', 3: '𒂀', 4: '𒂅', 5: '𒄀', 6: '𒄖', 7: '𒅅', 8: '𒆍', 9: '𒈠'
+	};
+	const KEY_ROWS = Object.entries(KEY);
+
+	/** English → the tablet. Tags, accents and punctuation go; a sentence end becomes a raised dot. */
+	function cun(text) {
+		return text
+			.replace(/<[^>]+>/g, '')
+			.normalize('NFD')
+			.replace(/[\u0300-\u036f\u02bb\u2019']/g, '')
+			.toLowerCase()
+			.replace(/[.!?]/g, ' ·')
+			.replace(/[^a-z0-9 ·]/g, ' ')
+			.replace(/[a-z0-9]/g, (ch) => KEY[ch])
+			.replace(/ +/g, ' ')
+			.trim();
+	}
+
+	const TABLET = [
+		ESSAY.lede, ESSAY.intro, ESSAY.parts,
+		ESSAY.why.h, ...ESSAY.why.ps,
+		ESSAY.stone.h, ESSAY.stone.p, ESSAY.stone.caption,
+		ESSAY.close
+	].map(cun);
+
 	/** Mulberry32 — small, fast, and identical on both sides of hydration. */
 	function seeded(seed) {
 		return function () {
@@ -142,7 +207,7 @@
 
 <div class="room" class:reveal class:held={intro}>
 	<!-- The wall. Texture, not text. -->
-	<div class="wall" aria-hidden="true">
+	<div class="wall" aria-hidden="true" role="presentation">
 		{#each wall as row, i}
 			<div class="course" class:rtl={i % 2 === 1} style:--dur="{150 + i * 11}s">
 				<span>{row}</span><span>{row}</span>
@@ -173,16 +238,24 @@
 			</ol>
 		</section>
 
+		<!-- The tablet: the whole essay, letter for sign, before any English.
+		     Real text, not aria-hidden, no data-rise — it is the first thing a
+		     reader gets, on screen and in reader mode. -->
+		<section class="band tablet" aria-label="This page in cuneiform, letter for sign">
+			<div class="tablet-text" lang="akk">
+				{#each TABLET as line, i (i)}
+					<p class="tablet-line">{line}</p>
+				{/each}
+			</div>
+			<p class="tablet-note">
+				That is this page, letter for sign, through the key under the lexicon.
+				In English:
+			</p>
+		</section>
+
 		<section class="band prose" data-rise>
-			<p class="lede">
-				Ammoura is named after a man who has been dead for about three thousand
-				seven hundred and seventy years.
-			</p>
-			<p>
-				Hammurabi was the sixth king of Babylon and reigned from around 1792 to
-				1750 BC. He was an Amorite, and in his own language his name was
-				<em>ʻAmmurāpi</em>. It is built out of two ordinary words.
-			</p>
+			<p class="lede">{@html ESSAY.lede}</p>
+			<p>{@html ESSAY.intro}</p>
 		</section>
 
 		<!-- The point of the page, given the whole width. -->
@@ -202,24 +275,10 @@
 		</section>
 
 		<section class="band prose" data-rise>
-			<h2>Why him</h2>
-			<p>
-				Not for the conquests, though there were plenty — Larsa, Eshnunna, Mari,
-				nearly all of Mesopotamia under one rule by the end. Those are the part
-				of him the centuries quietly dropped.
-			</p>
-			<p>
-				What they kept is a block of basalt taller than a man, carved with two
-				hundred and eighty-two laws, and <strong>set up in public</strong>. That
-				last part is the whole of it. Before, the rules lived with the people who
-				enforced them, and you found out what they were by breaking one. Cutting
-				them into stone in the open changed who was allowed to know.
-			</p>
-			<p>
-				That is the idea this company is named after. The tools for building a
-				business have mostly belonged to people who could already afford them.
-				We would rather put them where you can reach them.
-			</p>
+			<h2>{ESSAY.why.h}</h2>
+			{#each ESSAY.why.ps as para, i (i)}
+				<p>{@html para}</p>
+			{/each}
 		</section>
 
 		<!-- ── The lexicon ──
@@ -229,7 +288,8 @@
 			<h2 class="centred">What the marks say</h2>
 			<p class="note">
 				Sixteen of the signs moving behind this page. The rest are the same ones
-				shuffled — a wall of writing, not a sentence.
+				shuffled — a wall of writing, not a sentence. The tablet at the top is
+				different: it is this page, letter for sign, with this key.
 			</p>
 			<ul class="lexicon">
 				{#each LEXICON as l, i (l.sign)}
@@ -250,6 +310,14 @@
 					</li>
 				{/each}
 			</ul>
+			<details class="key">
+				<summary>The key — thirty-six signs, one for each letter and digit</summary>
+				<ul class="key-grid" aria-label="Letter to sign">
+					{#each KEY_ROWS as [ch, sign] (ch)}
+						<li><span class="key-ch">{ch}</span><span class="key-sign" lang="akk">{sign}</span></li>
+					{/each}
+				</ul>
+			</details>
 		</section>
 
 		<section class="band monument-band" data-rise>
@@ -283,18 +351,9 @@
 				</svg>
 
 				<div class="monument-text">
-					<h2>What happened to the stone</h2>
-					<p>
-						It was looted. The Elamites carried it off to Susa, in what is now
-						Iran, and there it stayed, face-down in the dirt, for something like
-						twenty-six centuries. It was dug up in 1901. It stands in the Louvre
-						today, and the laws on it are still legible.
-					</p>
-					<p class="caption">
-						Two and a quarter metres of basalt. Two hundred and eighty-two laws,
-						and a relief at the head of it showing the king receiving them from
-						Shamash — <span lang="akk">𒌓</span>, the sun.
-					</p>
+					<h2>{ESSAY.stone.h}</h2>
+					<p>{@html ESSAY.stone.p}</p>
+					<p class="caption">{@html ESSAY.stone.caption}</p>
 				</div>
 			</div>
 		</section>
@@ -313,8 +372,7 @@
 		<section class="band close-band" data-rise>
 			<p class="close">
 				<span class="mark" lang="akk" aria-hidden="true">𒈗</span>
-				The name kept the middle of his and let the rest go.
-				<em>ʻAmm<strong>ura</strong>pi.</em> Ammoura.
+				{@html ESSAY.close}
 			</p>
 			<footer class="colophon">
 				<a href="https://en.wikipedia.org/wiki/Hammurabi" target="_blank" rel="noopener noreferrer">
@@ -575,6 +633,82 @@
 			opacity: 1;
 			transform: none;
 		}
+	}
+
+	/* ── The tablet ── */
+	.tablet {
+		width: min(var(--measure), 100%);
+		margin: 0 auto;
+		padding-top: clamp(1rem, 3vw, 3rem);
+	}
+
+	.tablet-line {
+		margin: 0 0 calc(0.9rem * var(--fs));
+		font-family: 'Ammoura Cuneiform', 'Noto Sans Cuneiform', serif;
+		font-size: clamp(1.05rem, 2.1vw, 1.65rem);
+		line-height: 1.9;
+		color: #f0ddc4;
+		text-shadow: 0 -1px 0 rgba(255, 210, 150, 0.3), 0 2px 3px rgba(0, 0, 0, 0.85);
+		/* Cuneiform has no hyphenation points; let a long line break anywhere
+		   rather than run off a phone. */
+		overflow-wrap: anywhere;
+	}
+
+	.tablet-note {
+		margin: calc(2rem * var(--fs)) 0 0;
+		font-family: 'DejaVu Sans', 'Liberation Sans', sans-serif;
+		font-size: calc(0.72rem * var(--fs));
+		letter-spacing: 0.2em;
+		text-transform: uppercase;
+		color: var(--clay-faint);
+	}
+
+	/* ── The key ── */
+	.key {
+		max-width: 92rem;
+		margin: clamp(1.5rem, 3vw, 3rem) auto 0;
+		color: var(--clay-faint);
+	}
+
+	.key summary {
+		cursor: pointer;
+		font-family: 'DejaVu Sans', 'Liberation Sans', sans-serif;
+		font-size: calc(0.72rem * var(--fs));
+		letter-spacing: 0.2em;
+		text-transform: uppercase;
+	}
+
+	.key-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(4.2rem, 1fr));
+		gap: 0.5rem;
+		margin: 1.2rem 0 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.key-grid li {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.35rem;
+		padding: 0.7rem 0.2rem;
+		border: 1px solid rgba(232, 213, 188, 0.1);
+		background: rgba(255, 178, 92, 0.022);
+	}
+
+	.key-ch {
+		font-family: 'DejaVu Sans', 'Liberation Sans', sans-serif;
+		font-size: calc(0.7rem * var(--fs));
+		letter-spacing: 0.2em;
+		color: var(--clay-faint);
+	}
+
+	.key-sign {
+		font-family: 'Ammoura Cuneiform', 'Noto Sans Cuneiform', serif;
+		font-size: clamp(1.2rem, 2.4vw, 2rem);
+		line-height: 1;
+		color: #f0ddc4;
 	}
 
 	/* ── The five ── */
