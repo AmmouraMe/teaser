@@ -2458,56 +2458,10 @@
 
 
 <style>
-	/* ── Themes ──
-	   Two of them, and they are not the same page in two palettes. Dark is the
-	   teaser: black, a wireframe planet, a launch date flying in on an arc.
-	   Light is the other side of the same joke — a pastel sky, a unicorn where
-	   the date was, and a candy mountain where the towers were.
-
-	   Everything below is written once against these tokens, so the dark theme
-	   still renders exactly what it rendered before the light one existed. */
-	:global(html) {
-		--ink-rgb: 255 255 255;
-		--ink: #fff;
-		--ground: #000;
-		/* The halo that keeps the copy readable where the planet crosses it. */
-		--halo-rgb: 6 7 9;
-		--panel-rgb: 10 12 16;
-		--accent-rgb: 132 226 136;
-	}
-
-	:global(html[data-theme='light']) {
-		/* A deep plum rather than black: on a pastel ground pure black is a hole,
-		   and every alpha below was chosen against a coloured ink. */
-		--ink-rgb: 58 30 66;
-		--ink: #3a1e42;
-		--ground: #fff7fb;
-		--halo-rgb: 255 248 252;
-		--panel-rgb: 255 255 255;
-		--accent-rgb: 236 92 168;
-	}
-
-	:global(*, *::before, *::after) {
-		box-sizing: border-box;
-		margin: 0;
-		padding: 0;
-	}
-
-	:global(html, body) {
-		background: var(--ground);
-		color: var(--ink);
-		font-family: 'Georgia', serif;
-		scroll-behavior: smooth;
-		-webkit-text-size-adjust: 100%;
-	}
-
-	/* The light theme's ground is a sky: dawn pink at the top, through lilac, to
-	   a mint horizon. Fixed, so it does not slide as the page scrolls. */
-	:global(html[data-theme='light'] body) {
-		background:
-			linear-gradient(180deg, #ffeef7 0%, #f6ecff 38%, #eef6ff 68%, #ecfbf3 100%)
-			fixed;
-	}
+	/* The themes, the reset and the page's ground live in the root layout
+	   (`+layout.svelte`), because a scoped style block only exists while its own
+	   component is rendered — see the note there. Everything below is written
+	   against the tokens it defines. */
 
 	main {
 		min-height: 100vh;
