@@ -3160,24 +3160,47 @@
 		gap: 0.75rem;
 		align-items: stretch;
 	}
+	/* This is the one thing on the page we are asking a visitor to DO, and it was
+	   the hardest thing on the page to see: a bare underline at ink/0.4 with no
+	   background, which on the light theme's pastel sky reads as a stray hairline
+	   rather than a field. It gets the same panel-and-border treatment as the
+	   "built at" pill and the theme switch, so it joins the page's existing family
+	   of small chrome instead of shouting. */
 	.join-row input {
 		flex: 1 1 auto;
 		min-width: 0;
-		background: none;
-		border: none;
-		border-bottom: 1px solid rgb(var(--ink-rgb) / 0.4);
+		background: rgb(var(--panel-rgb) / 0.55);
+		/* 0.5, not the 0.22 the other small chrome uses, because those pieces sit
+		   on the dark sky and this one has to work on the light theme's pastel
+		   ground too. There the panel fill is white-on-near-white and contributes
+		   nothing, so the border is the whole field: at 0.22 it measured 1.54:1,
+		   under the 3:1 a control boundary needs. 0.5 gives 3.04:1 on light and
+		   5.3:1 on dark, so one value carries both. */
+		border: 1px solid rgb(var(--ink-rgb) / 0.5);
+		border-radius: 999px;
 		color: var(--ink);
 		font-family: inherit;
 		font-size: 1rem;
-		padding: 0.6rem 0;
-		border-radius: 0;
+		padding: 0.7rem 1.1rem;
+		transition:
+			border-color 0.2s ease,
+			background 0.2s ease;
 	}
+	/* The placeholder is the field's only visible label — there is no <label>,
+	   just an aria-label — so it has to be readable, not decorative. At the old
+	   0.3 it measured 1.86:1 against the light theme's ground, which is below
+	   even the large-text floor. 0.65 measures 4.65:1 and still reads as a hint.
+	   Quiet comes from the panel now, not from making the words disappear. */
 	.join-row input::placeholder {
-		color: rgb(var(--ink-rgb) / 0.3);
+		color: rgb(var(--ink-rgb) / 0.65);
+	}
+	.join-row input:hover {
+		border-color: rgb(var(--ink-rgb) / 0.7);
 	}
 	.join-row input:focus {
 		outline: none;
-		border-bottom-color: var(--ink);
+		border-color: var(--ink);
+		background: rgb(var(--panel-rgb) / 0.8);
 	}
 	.join-row button {
 		flex: 0 0 auto;
@@ -3185,9 +3208,17 @@
 		width: auto;
 		align-self: stretch;
 		padding: 0.7rem 1.6rem;
+		/* Matches the field beside it and the PLAY button above it. A square
+		   button against a pill-shaped input reads as two controls that arrived
+		   from different pages. */
+		border-radius: 999px;
 	}
+	/* Disabled until the address parses, which means this is how the button looks
+	   when the page first loads — and at 0.25 the only call to action on the site
+	   arrived looking like an empty rectangle, or like something broken. It has to
+	   read as "not yet", which needs it to be legible first. */
 	.join-row button:disabled {
-		opacity: 0.25;
+		opacity: 0.55;
 		cursor: default;
 		pointer-events: none;
 	}
