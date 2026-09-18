@@ -2468,6 +2468,28 @@
 		min-height: 100dvh;
 		display: flex;
 		flex-direction: column;
+
+		/* How far up from the bottom edge the fixed corner chrome reaches, so
+		   that a section can hold its content clear of it.
+
+		   Three things are pinned down there and none of them are in the flow:
+		   the "built at" pill and the legal links sit on the bottom edge, and
+		   the cuneiform mark sits above the links — it is the tallest, so it
+		   sets the number. On a phone the legal links stack onto two lines and
+		   push the mark higher still, which is why the narrow value is larger.
+
+		   Without this the sections centre their content in a full viewport and
+		   the last row — the socials — lands underneath the pill and the legal
+		   links. On a short viewport, which is what an in-app browser like
+		   Discord's gives you once its own top and bottom bars are taken out,
+		   they overlap completely. */
+		--chrome-bottom: 4.5rem;
+	}
+
+	@media (max-width: 560px) {
+		main {
+			--chrome-bottom: 6rem;
+		}
 	}
 
 
@@ -2628,8 +2650,14 @@
 		align-items: center;
 		justify-content: center;
 		padding: 1.5rem 1.25rem;
-		padding-top: env(safe-area-inset-top, 1.5rem);
-		padding-bottom: env(safe-area-inset-bottom, 1.5rem);
+		/* `env(safe-area-inset-top, 1.5rem)` as a whole value was the bug: the
+		   fallback is only used where env() is UNSUPPORTED. Every browser that
+		   has a safe area supports it, and in an ordinary (non-fullscreen) web
+		   view it reports 0 — so the padding these two lines were meant to add
+		   evaluated to nothing on exactly the phones they were written for. The
+		   inset has to be added to a base, never stand in for one. */
+		padding-top: calc(1.5rem + env(safe-area-inset-top, 0px));
+		padding-bottom: calc(var(--chrome-bottom) + env(safe-area-inset-bottom, 0px));
 		text-align: center;
 	}
 
@@ -2758,7 +2786,8 @@
 		align-items: center;
 		justify-content: center;
 		padding: 2.5rem 1.25rem;
-		padding-bottom: calc(2.5rem + env(safe-area-inset-bottom, 0px));
+		/* 2.5rem was not enough to clear the corner chrome — see --chrome-bottom. */
+		padding-bottom: calc(var(--chrome-bottom) + env(safe-area-inset-bottom, 0px));
 	}
 
 	/* ── Buttons ── */
@@ -3331,7 +3360,10 @@
 	/* ── Tablet and up (>=640px) ── */
 	@media (min-width: 640px) {
 		.hero {
-			padding: 2rem;
+			/* Longhand, because the `padding` shorthand here used to overwrite the
+			   bottom clearance set above and put the socials back under the pill. */
+			padding-inline: 2rem;
+			padding-top: calc(2rem + env(safe-area-inset-top, 0px));
 		}
 
 		.tagline {
@@ -3355,7 +3387,8 @@
 		}
 
 		.enter {
-			padding: 4rem 2rem;
+			padding-inline: 2rem;
+			padding-top: 4rem;
 		}
 
 		button {
@@ -3381,6 +3414,77 @@
 
 		h1 {
 			font-size: 2.5rem;
+		}
+	}
+
+	/* ── Short viewports ──
+	   An in-app browser — Discord's, Instagram's, a mail client's — hands the
+	   page whatever is left after its own title bar and toolbar, which on a
+	   phone is often under 600px. Two things go wrong there at once: the corner
+	   furniture is pinned, so it costs the same ~90px out of a much smaller
+	   screen, and the page now scrolls, so that furniture sits permanently on
+	   top of whatever is passing under it. That is how the socials row ended up
+	   printed through the "built at" pill and the legal links.
+
+	   Bottom padding cannot fix it, because the problem is not where the content
+	   ends — it is that fixed elements cover the middle of a scroll as well as
+	   the end. So below this height the three pieces stop being chrome and
+	   become an ordinary footer at the end of the document, in flow, where
+	   nothing can be underneath them.
+
+	   Height AND width, because it takes both. Height is what makes the pinned
+	   furniture expensive and puts it over a scroll; width is what puts the
+	   content underneath it. A laptop window 700px tall has the first without
+	   the second — its hero is a centred column with empty corners either side,
+	   nothing collides, and the pinned version is the better-looking one, so it
+	   keeps it. A phone in landscape is 844x390: short, and wide enough to slip
+	   past a width-only test, which is why the width bound is 900 and not 560.
+
+	   The 720px matches the block above that tightens the hero's vertical
+	   rhythm — one definition of "short" in this file, not two that drift.
+
+	   This block is last in the file so it wins against the max-width: 560px
+	   rules above, which have the same specificity and would otherwise decide
+	   the direction of the legal links by source order. */
+	@media (max-height: 720px) and (max-width: 900px) {
+		main {
+			/* Nothing is pinned over the content any more, so a section only needs
+			   ordinary breathing room at its foot. */
+			--chrome-bottom: 1.5rem;
+		}
+
+		.built-at,
+		.origin,
+		.site-footer {
+			position: static;
+			z-index: auto;
+		}
+
+		.built-at {
+			width: fit-content;
+			margin: 2rem auto 0;
+		}
+
+		/* In the corner this is a smudge to be found. In a footer it is a line of
+		   its own, and a link nobody can see is not a discovery, it is a defect. */
+		.origin {
+			display: block;
+			width: fit-content;
+			margin: 1.25rem auto 0;
+			opacity: 0.32;
+		}
+
+		.site-footer {
+			flex-direction: row;
+			justify-content: center;
+			align-items: center;
+			margin-top: 1.25rem;
+			padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+		}
+
+		/* The middot separates them again now that they are side by side. */
+		.site-footer span {
+			display: inline;
 		}
 	}
 </style>
