@@ -38,6 +38,8 @@ describe('provider config', () => {
 	it('knows every listed provider and nothing else', () => {
 		for (const p of PROVIDERS) expect(providerConfig(p)).not.toBeNull();
 		expect(providerConfig('myspace')).toBeNull();
+		expect(providerConfig('__proto__')).toBeNull();
+		expect(providerConfig('toString')).toBeNull();
 	});
 
 	it('offers only fully configured providers, in button order', () => {
