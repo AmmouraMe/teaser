@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { saveEntry, notifyJoin } from './waitlist.js';
+import { saveEntry, notifyJoin, isFakeEmail, collectServerData } from './waitlist.js';
 import { memoryKV } from './kv.test-helper.js';
 
 afterEach(() => {
@@ -57,5 +57,36 @@ describe('notifyJoin', () => {
 		await expect(notifyJoin('https://hook', entry())).resolves.toBeUndefined();
 		vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 400 })));
 		await expect(notifyJoin('https://hook', entry())).resolves.toBeUndefined();
+	});
+});
+
+describe('isFakeEmail', () => {
+	it.each([
+		'noah@gmail.com',
+		'nora.smith@proton.me',
+		'tessa@icloud.com',
+		'tester.jones@company.io',
+		'nullable@dev.io',
+		'first+tag@sub.domain.co'
+	])('accepts a real-looking address: %s', (email) => {
+		expect(isFakeEmail(email)).toBe(false);
+	});
+
+	it.each([
+		'',
+		'no-at-sign',
+		'@domain.com',
+		'user@',
+		'user@localhost',
+		'has space@x.co',
+		'x@mailinator.com',
+		'x@Example.COM',
+		'test@gmail.com',
+		'test+1@gmail.com',
+		'no@gmail.com',
+		'NULL@gmail.com',
+		`${'a'.repeat(250)}@x.co`
+	])('rejects %s', (email) => {
+		expect(isFakeEmail(email)).toBe(true);
 	});
 });

@@ -65,13 +65,22 @@ const FAKE_DOMAINS = [
  * @param {string} email
  */
 export function isFakeEmail(email) {
-	const domain = email.includes('@') ? email.split('@')[1]?.toLowerCase() : '';
-	const local = email.split('@')[0]?.toLowerCase() ?? '';
+	// RFC 5321 caps a forward-path at 254 characters; anything longer is not
+	// deliverable and would only bloat the KV entry and the dedupe key.
+	if (email.length > 254) return true;
+	const at = email.lastIndexOf('@');
+	if (at < 1) return true;
+	const local = email.slice(0, at).toLowerCase();
+	const domain = email.slice(at + 1).toLowerCase();
 	return (
-		!email.includes('@') ||
 		!domain ||
+		!domain.includes('.') ||
+		/\s/.test(email) ||
 		FAKE_DOMAINS.includes(domain) ||
-		/^(test|fake|asdf|nope|no|none|null)\+?/.test(local)
+		// The whole local part, optionally with a +tag. Unanchored, this used to
+		// turn away noah@, nora@, tessa@ … anyone whose name began with "no" or
+		// "test".
+		/^(test|fake|asdf|nope|no|none|null)(\+.*)?$/.test(local)
 	);
 }
 
