@@ -24,5 +24,20 @@ export async function handle({ event, resolve }) {
 		response.headers.set('expires', '0');
 	}
 
+	// _headers only reaches static assets; SSR responses get these here.
+	// (A Response passed straight through from fetch() has immutable headers.)
+	try {
+		if (!response.headers.has('x-content-type-options')) {
+			response.headers.set('x-content-type-options', 'nosniff');
+		}
+	} catch {
+		/* immutable headers: leave them as they are */
+	}
+	// The admin page has one-click archive buttons; never let it be framed.
+	if (event.url.pathname === '/admin' || event.url.pathname.startsWith('/admin/')) {
+		response.headers.set('x-frame-options', 'DENY');
+		response.headers.set('content-security-policy', "frame-ancestors 'none'");
+	}
+
 	return response;
 }
