@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { createSession, verifySession, COOKIE_NAME } from './auth.js';
+import { createSession, verifySession, sign, verify, COOKIE_NAME } from './auth.js';
 
 const SECRET = 'test-secret';
 
@@ -44,5 +44,24 @@ describe('admin session cookie', () => {
 		expect(await verifySession(cookie, SECRET)).not.toBeNull();
 		vi.setSystemTime(new Date('2026-01-08T00:00:01Z'));
 		expect(await verifySession(cookie, SECRET)).toBeNull();
+	});
+});
+
+describe('sign/verify', () => {
+	it('verifies its own signatures and nothing else', async () => {
+		const sig = await sign('data', SECRET);
+		expect(await verify('data', sig, SECRET)).toBe(true);
+		expect(await verify('data!', sig, SECRET)).toBe(false);
+		expect(await verify('data', sig, 'other')).toBe(false);
+		expect(await verify('data', 'not base64 at all!', SECRET)).toBe(false);
+		expect(await verify('data', '', SECRET)).toBe(false);
+	});
+
+	it('refuses a correctly signed payload with no expiry or username', async () => {
+		for (const body of [{ username: 'davis9001' }, { username: 'davis9001', expires: 'never' }, { expires: Date.now() + 1e6 }]) {
+			const payload = btoa(JSON.stringify(body));
+			const cookie = `${payload}.${await sign(payload, SECRET)}`;
+			expect(await verifySession(cookie, SECRET)).toBeNull();
+		}
 	});
 });
