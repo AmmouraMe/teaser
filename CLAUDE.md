@@ -32,7 +32,7 @@ npm only (`package-lock.json`; `.npmrc` sets `engine-strict=true`).
 
 - `wrangler.toml`: project `teaser`, a single binding, KV `WAITLIST`. There is no D1 or R2.
 - Env vars, from `.dev.vars.example` (local values go in the gitignored `.dev.vars`; types are in `src/app.d.ts`): `DISCORD_WEBHOOK_URL`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `GITHUB_CLIENT_ID/SECRET`, `GOOGLE_CLIENT_ID/SECRET`, `FACEBOOK_CLIENT_ID/SECRET`, `APPLE_CLIENT_ID` (the Services ID), `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` (the .p8 PEM). A join provider with unset vars is simply not rendered. One Discord app serves both admin login and the join button, so it needs both redirect URIs registered.
-- `_headers` (repo root): Cloudflare Pages header rules. It caches `/_app/immutable/*` forever, sets no-cache on `*.html`, adds `nosniff` on `/*`, and sets `no-store` on `/auth/*` and `/admin/*`. Pages applies these to static assets only. SSR HTML gets its no-cache headers from `src/hooks.server.js` instead.
+- `_headers` (repo root): Cloudflare Pages header rules. It caches `/_app/immutable/*` forever, sets no-cache on `*.html`, adds `nosniff` on `/*`, and sets `no-store` on `/auth/*` and `/admin/*`. Pages applies these to static assets only. SSR responses get their headers from `src/hooks.server.js` instead: no-cache on HTML, `nosniff` everywhere, and `X-Frame-Options: DENY` plus `frame-ancestors 'none'` on `/admin`.
 
 ## Architecture
 
