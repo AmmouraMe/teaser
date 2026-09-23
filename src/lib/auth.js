@@ -1,4 +1,6 @@
 const COOKIE_NAME = 'admin_session';
+/** CSRF state for an in-flight admin login. */
+export const ADMIN_STATE_COOKIE = 'admin_state';
 const SESSION_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 /** @param {string} secret @param {KeyUsage[]} usages */

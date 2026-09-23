@@ -1,5 +1,5 @@
 import { redirect, error } from '@sveltejs/kit';
-import { createSession, COOKIE_NAME } from '$lib/auth.js';
+import { createSession, COOKIE_NAME, ADMIN_STATE_COOKIE } from '$lib/auth.js';
 
 const ALLOWED_USER = 'davis9001';
 
@@ -7,6 +7,13 @@ const ALLOWED_USER = 'davis9001';
 export async function GET({ url, platform, cookies }) {
 	const code = url.searchParams.get('code');
 	if (!code) throw error(400, 'Missing authorization code');
+
+	const state = url.searchParams.get('state');
+	const expected = cookies.get(ADMIN_STATE_COOKIE);
+	cookies.delete(ADMIN_STATE_COOKIE, { path: '/auth/discord' });
+	if (!state || !expected || state !== expected) {
+		throw error(400, 'Sign-in expired or was not started here. Try again.');
+	}
 
 	const clientId = platform?.env?.DISCORD_CLIENT_ID;
 	const clientSecret = platform?.env?.DISCORD_CLIENT_SECRET;
@@ -52,7 +59,10 @@ export async function GET({ url, platform, cookies }) {
 		throw error(403, `Access denied. You are not ${ALLOWED_USER}.`);
 	}
 
-	// Create signed session cookie (not httpOnly so client JS can persist to localStorage)
+	// Not httpOnly, on purpose: +layout.svelte and admin/+page.svelte copy the
+	// value to localStorage and write it back whenever the cookie is missing.
+	// That means script on this origin can read the session; see CLAUDE.md
+	// before changing either side.
 	const session = await createSession(user.username, clientSecret);
 	cookies.set(COOKIE_NAME, session, {
 		path: '/',
