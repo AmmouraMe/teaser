@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { saveEntry, notifyJoin, isFakeEmail, collectServerData } from './waitlist.js';
+import { saveEntry, notifyJoin, isFakeEmail, collectServerData, parseClientData, MAX_CLIENT_DATA } from './waitlist.js';
 import { memoryKV } from './kv.test-helper.js';
 
 afterEach(() => {
@@ -89,4 +89,43 @@ describe('isFakeEmail', () => {
 	])('rejects %s', (email) => {
 		expect(isFakeEmail(email)).toBe(true);
 	});
+});
+
+describe('collectServerData', () => {
+	it('keeps request metadata but never credentials', () => {
+		const request = new Request('https://ammoura.me/', {
+			headers: {
+				cookie: 'admin_session=secret.sig; join_state=x',
+				authorization: 'Bearer t',
+				'user-agent': 'UA',
+				'cf-connecting-ip': '198.51.100.4',
+				'cf-ipcountry': 'DE'
+			}
+		});
+		const data = collectServerData(request);
+		expect(data).toMatchObject({ ip: '198.51.100.4', country: 'DE', userAgent: 'UA' });
+		expect(data.rawHeaders['user-agent']).toBe('UA');
+		expect(data.rawHeaders).not.toHaveProperty('cookie');
+		expect(data.rawHeaders).not.toHaveProperty('authorization');
+		expect(JSON.stringify(data)).not.toContain('secret.sig');
+	});
+
+	it('falls back to the platform client address', () => {
+		const data = collectServerData(new Request('https://ammoura.me/'), {
+			getClientAddress: () => '192.0.2.1'
+		});
+		expect(data.ip).toBe('192.0.2.1');
+	});
+});
+
+describe('parseClientData', () => {
+	it('accepts a JSON object', () => {
+		expect(parseClientData('{"a":1}')).toEqual({ a: 1 });
+	});
+	it.each([null, '', '{bad', '[1,2]', '"str"', 'null', `{"a":"${'x'.repeat(MAX_CLIENT_DATA)}"}`])(
+		'drops %s',
+		(raw) => {
+			expect(parseClientData(raw)).toEqual({});
+		}
+	);
 });

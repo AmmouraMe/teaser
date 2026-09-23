@@ -84,6 +84,27 @@ export function isFakeEmail(email) {
 	);
 }
 
+const CREDENTIAL_HEADERS = ['cookie', 'authorization', 'proxy-authorization', 'cf-access-jwt-assertion'];
+
+/** Upper bound on the browser-supplied `_clientData` blob, in characters. */
+export const MAX_CLIENT_DATA = 16 * 1024;
+
+/**
+ * Parse the form's `_clientData` field. It is whatever the browser sent, so
+ * anything that is not a plain JSON object of reasonable size is dropped.
+ * @param {FormDataEntryValue | null} raw
+ * @returns {Record<string, any>}
+ */
+export function parseClientData(raw) {
+	if (typeof raw !== 'string' || !raw || raw.length > MAX_CLIENT_DATA) return {};
+	try {
+		const parsed = JSON.parse(raw);
+		return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+	} catch {
+		return {};
+	}
+}
+
 /**
  * Everything the request and Cloudflare's `cf` object say about the visitor.
  * Stored on the entry as `server`; /admin renders it.
@@ -94,6 +115,9 @@ export function isFakeEmail(email) {
  */
 export function collectServerData(request, event) {
 	const headers = Object.fromEntries(request.headers.entries());
+	// Credentials never go into the waitlist. `cookie` carries admin_session
+	// when the admin submits the form, and the entry is rendered on /admin.
+	for (const h of CREDENTIAL_HEADERS) delete headers[h];
 
 	// Cloudflare-specific headers & properties
 	const cf = /** @type {any} */ (request).cf || {};

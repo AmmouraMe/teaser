@@ -1,5 +1,5 @@
 import { configuredProviders } from '$lib/oauth.js';
-import { saveEntry, notifyJoin, isFakeEmail, collectServerData } from '$lib/waitlist.js';
+import { saveEntry, notifyJoin, isFakeEmail, collectServerData, parseClientData } from '$lib/waitlist.js';
 
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ platform, url }) {
@@ -32,12 +32,7 @@ export const actions = {
 		const ts = new Date().toISOString();
 		const serverData = collectServerData(request, event);
 
-		// Parse client-side collected data
-		let clientData = {};
-		try {
-			const raw = data.get('_clientData');
-			if (raw) clientData = JSON.parse(raw.toString());
-		} catch { /* ignore malformed client data */ }
+		const clientData = parseClientData(data.get('_clientData'));
 
 		const entry = {
 			email,
