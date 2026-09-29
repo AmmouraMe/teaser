@@ -37,7 +37,7 @@ describe('notifyJoin', () => {
 	});
 
 	it('posts an embed with only defined field values', async () => {
-		const f = vi.fn(async () => new Response('', { status: 204 }));
+		const f = vi.fn(async () => new Response(null, { status: 204 }));
 		vi.stubGlobal('fetch', f);
 		await notifyJoin('https://hook', {
 			...entry(),

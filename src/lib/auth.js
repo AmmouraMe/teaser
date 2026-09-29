@@ -80,7 +80,7 @@ export async function verifySession(cookie, secret) {
 		const data = JSON.parse(atob(payload));
 		// A payload without a numeric expiry never expires under `<`, so
 		// treat it as invalid rather than as permanent.
-		if (typeof data?.expires !== 'number' || data.expires < Date.now()) return null;
+		if (!Number.isFinite(data?.expires) || data.expires <= Date.now()) return null;
 		if (typeof data.username !== 'string' || !data.username) return null;
 		return { username: data.username };
 	} catch {

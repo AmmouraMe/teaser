@@ -65,7 +65,7 @@ describe('waitlist email action', () => {
 		// The old email-path notifier sent `Name` and `What's Stopping Them`
 		// fields whose values no longer existed, and Discord 400s an embed
 		// field with no value — so every email signup notification failed.
-		const f = vi.fn(async () => new Response('', { status: 204 }));
+		const f = vi.fn(async () => new Response(null, { status: 204 }));
 		vi.stubGlobal('fetch', f);
 		await submit({ email: 'a@person.dev' }, { WAITLIST: memoryKV(), DISCORD_WEBHOOK_URL: 'https://hook' });
 		expect(f).toHaveBeenCalledOnce();

@@ -65,3 +65,17 @@ describe('sign/verify', () => {
 		}
 	});
 });
+
+describe('session expiry boundaries', () => {
+	it('rejects a session at the exact expiry instant', async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+		const payload = btoa(JSON.stringify({ username: 'davis9001', expires: Date.now() }));
+		expect(await verifySession(`${payload}.${await sign(payload, SECRET)}`, SECRET)).toBeNull();
+	});
+
+	it('rejects an overflowing numeric expiry', async () => {
+		const payload = btoa('{"username":"davis9001","expires":1e400}');
+		expect(await verifySession(`${payload}.${await sign(payload, SECRET)}`, SECRET)).toBeNull();
+	});
+});

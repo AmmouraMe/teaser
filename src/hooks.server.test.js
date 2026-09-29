@@ -8,8 +8,9 @@ const SECRET = 'secret';
  * @param {string} path
  * @param {string | undefined} cookie
  * @param {string} [type]
+ * @param {Response} [resolved]
  */
-async function run(path, cookie, type = 'text/html') {
+async function run(path, cookie, type = 'text/html', resolved = new Response('ok', { headers: { 'content-type': type } })) {
 	const event = /** @type {any} */ ({
 		url: new URL(`https://ammoura.me${path}`),
 		cookies: { get: (/** @type {string} */ n) => (n === COOKIE_NAME ? cookie : undefined) },
@@ -18,7 +19,7 @@ async function run(path, cookie, type = 'text/html') {
 	});
 	const response = await handle({
 		event,
-		resolve: async () => new Response('ok', { headers: { 'content-type': type } })
+		resolve: async () => resolved
 	});
 	return { event, response };
 }
@@ -50,5 +51,27 @@ describe('hooks handle', () => {
 			expect(response.headers.get('content-security-policy')).toBe("frame-ancestors 'none'");
 		}
 		expect((await run('/administrator', undefined)).response.headers.get('x-frame-options')).toBeNull();
+	});
+});
+
+describe('response header regressions', () => {
+	it('preserves existing CSP directives while denying admin framing', async () => {
+		const resolved = new Response('ok', { headers: {
+			'content-security-policy': "default-src 'self'; script-src 'nonce-test'; frame-ancestors 'self'"
+		} });
+		const { response } = await run('/admin', undefined, undefined, resolved);
+		expect(response.headers.get('content-security-policy')).toBe(
+			"default-src 'self'; script-src 'nonce-test'; frame-ancestors 'self', frame-ancestors 'none'"
+		);
+		expect(await response.text()).toBe('ok');
+	});
+
+	it.each(['/admin', '/auth/discord'])('hardens immutable redirects from %s', async (path) => {
+		const resolved = Response.redirect('https://ammoura.me/', 302);
+		const { response } = await run(path, undefined, undefined, resolved);
+		expect(response.status).toBe(302);
+		expect(response.headers.get('location')).toBe('https://ammoura.me/');
+		expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+		expect(response.headers.get('cache-control')).toContain('no-store');
 	});
 });
