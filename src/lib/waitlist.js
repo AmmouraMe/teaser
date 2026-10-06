@@ -21,10 +21,14 @@
  */
 
 /**
- * Persist an entry. Returns whether this email had been seen before.
+ * Persist an entry, once per email. Returns whether it was written.
  *
- * A duplicate is still written — repeat signups are history, not errors — but
- * the unique counter only moves the first time.
+ * A repeat of an email already on the list writes nothing and the caller
+ * posts nothing: every KV write spends quota and every post lands in the
+ * webhook channel, so a resubmitted form (or a script resubmitting it) must
+ * cost one read and nothing else. The check is a KV read, so two submissions
+ * of a brand-new email inside KV's propagation window can both get through;
+ * that is rare and harmless.
  *
  * @param {any} kv
  * @param {WaitlistEntry} entry
@@ -36,18 +40,16 @@ export async function saveEntry(kv, entry) {
 		return { stored: false, duplicate: false };
 	}
 
+	const emailKey = `seen_email:${entry.email.toLowerCase()}`;
+	if (await kv.get(emailKey)) return { stored: false, duplicate: true };
+
 	const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 	await kv.put(`entry:${uid}`, JSON.stringify(entry));
+	await kv.put(emailKey, '1');
+	const current = parseInt((await kv.get('counter:unique_emails')) || '0', 10);
+	await kv.put('counter:unique_emails', String(current + 1));
 
-	const emailKey = `seen_email:${entry.email.toLowerCase()}`;
-	const alreadySeen = await kv.get(emailKey);
-	if (!alreadySeen) {
-		await kv.put(emailKey, '1');
-		const current = parseInt((await kv.get('counter:unique_emails')) || '0', 10);
-		await kv.put('counter:unique_emails', String(current + 1));
-	}
-
-	return { stored: true, duplicate: Boolean(alreadySeen) };
+	return { stored: true, duplicate: false };
 }
 
 // ── Email-form helpers ───────────────────────────────────────────────────────
