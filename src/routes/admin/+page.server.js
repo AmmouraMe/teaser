@@ -47,6 +47,16 @@ export async function load({ locals, platform }) {
 	return { entries, archivedEntries, user: locals.user, uniqueEmails, uniqueDiscords };
 }
 
+/**
+ * Archive actions may only touch waitlist entries. Without this the admin form
+ * could be pointed at `seen_email:*` or a counter and rewrite it as JSON.
+ * @param {FormDataEntryValue | null} key
+ * @returns {key is string}
+ */
+function isEntryKey(key) {
+	return typeof key === 'string' && key.startsWith('entry:') && key.length > 'entry:'.length;
+}
+
 /** @type {import('./$types').Actions} */
 export const actions = {
 	archive: async ({ request, locals, platform }) => {
@@ -56,15 +66,15 @@ export const actions = {
 
 		const formData = await request.formData();
 		const kvKey = formData.get('kvKey');
-		if (!kvKey) return fail(400, { error: 'Missing key' });
+		if (!isEntryKey(kvKey)) return fail(400, { error: 'Missing key' });
 
-		const raw = await kv.get(/** @type {string} */ (kvKey));
+		const raw = await kv.get(kvKey);
 		if (!raw) return fail(404, { error: 'Entry not found' });
 
 		try {
 			const entry = JSON.parse(raw);
 			entry.archived = true;
-			await kv.put(/** @type {string} */ (kvKey), JSON.stringify(entry));
+			await kv.put(kvKey, JSON.stringify(entry));
 		} catch {
 			return fail(500, { error: 'Failed to archive entry' });
 		}
@@ -77,15 +87,15 @@ export const actions = {
 
 		const formData = await request.formData();
 		const kvKey = formData.get('kvKey');
-		if (!kvKey) return fail(400, { error: 'Missing key' });
+		if (!isEntryKey(kvKey)) return fail(400, { error: 'Missing key' });
 
-		const raw = await kv.get(/** @type {string} */ (kvKey));
+		const raw = await kv.get(kvKey);
 		if (!raw) return fail(404, { error: 'Entry not found' });
 
 		try {
 			const entry = JSON.parse(raw);
 			delete entry.archived;
-			await kv.put(/** @type {string} */ (kvKey), JSON.stringify(entry));
+			await kv.put(kvKey, JSON.stringify(entry));
 		} catch {
 			return fail(500, { error: 'Failed to unarchive entry' });
 		}

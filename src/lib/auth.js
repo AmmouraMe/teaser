@@ -1,5 +1,18 @@
 const COOKIE_NAME = 'admin_session';
+/** CSRF state for an in-flight admin login. */
+export const ADMIN_STATE_COOKIE = 'admin_state';
 const SESSION_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+/** @param {string} secret @param {KeyUsage[]} usages */
+function hmacKey(secret, usages) {
+	return crypto.subtle.importKey(
+		'raw',
+		new TextEncoder().encode(secret),
+		{ name: 'HMAC', hash: 'SHA-256' },
+		false,
+		usages
+	);
+}
 
 /**
  * HMAC-SHA256 sign a string.
@@ -7,29 +20,29 @@ const SESSION_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days
  * @param {string} secret
  * @returns {Promise<string>}
  */
-async function sign(data, secret) {
-	const encoder = new TextEncoder();
-	const key = await crypto.subtle.importKey(
-		'raw',
-		encoder.encode(secret),
-		{ name: 'HMAC', hash: 'SHA-256' },
-		false,
-		['sign']
-	);
-	const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(data));
+export async function sign(data, secret) {
+	const key = await hmacKey(secret, ['sign']);
+	const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(data));
 	return btoa(String.fromCharCode(...new Uint8Array(sig)));
 }
 
 /**
- * Verify an HMAC-SHA256 signature.
+ * Verify an HMAC-SHA256 signature. WebCrypto's verify compares in constant
+ * time; comparing two base64 strings with === does not.
  * @param {string} data
- * @param {string} signature
+ * @param {string} signature  base64, as produced by sign()
  * @param {string} secret
  * @returns {Promise<boolean>}
  */
-async function verify(data, signature, secret) {
-	const expected = await sign(data, secret);
-	return expected === signature;
+export async function verify(data, signature, secret) {
+	let sig;
+	try {
+		sig = Uint8Array.from(atob(signature), (c) => c.charCodeAt(0));
+	} catch {
+		return false;
+	}
+	const key = await hmacKey(secret, ['verify']);
+	return crypto.subtle.verify('HMAC', key, sig, new TextEncoder().encode(data));
 }
 
 /**
@@ -65,7 +78,10 @@ export async function verifySession(cookie, secret) {
 
 	try {
 		const data = JSON.parse(atob(payload));
-		if (data.expires < Date.now()) return null;
+		// A payload without a numeric expiry never expires under `<`, so
+		// treat it as invalid rather than as permanent.
+		if (!Number.isFinite(data?.expires) || data.expires <= Date.now()) return null;
+		if (typeof data.username !== 'string' || !data.username) return null;
 		return { username: data.username };
 	} catch {
 		return null;

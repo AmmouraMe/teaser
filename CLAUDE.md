@@ -1,0 +1,45 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+Pre-launch teaser and waitlist site for **Ammoura** (`ammoura.me`), repo `AmmouraMe/teaser`. It is SvelteKit 2 + Svelte 5 in plain JavaScript (JSDoc types, `jsconfig.json`, no TypeScript), running on Cloudflare Pages through `@sveltejs/adapter-cloudflare`. `README.md` is the unedited `sv create` boilerplate and has nothing project-specific in it. There are no agent rule files (AGENTS.md, copilot-instructions) in this repo.
+
+## Contribution Workflow (AmmouraMe org-wide)
+
+The workflow is defined in `../Ammoura-NebulaKit/CLAUDE.md` and applies to every AmmouraMe repo, this one included:
+
+1. **Start from a GitHub issue and claim it:** assign yourself or comment that you are taking it.
+2. **Work on a branch:** `feature/<short-name>` or `fix/<short-name>`, optionally with the issue number (`feature/68-code-editor`). Never commit to `main`.
+3. **Open a draft PR after the first commit.** Link the issue (`Closes #N`).
+4. **When the work is done,** update the PR description to say what landed, then mark it **Ready for review**.
+
+## Commands
+
+npm only (`package-lock.json`; `.npmrc` sets `engine-strict=true`).
+
+- `npm run dev`: Vite dev server on **port 4237**, set in `vite.config.js`. It was moved off 4297 because another project uses that port.
+- `npm run dev:cf`: `wrangler pages dev -- vite dev`, so that the Cloudflare bindings are available. `wrangler` is not in devDependencies.
+- `npm run dev:tunnel`: `cloudflared tunnel --config .cloudflared/config.yml run ammoura-dev`. This exposes `ammoura-dev.starspace.group` → `localhost:4237`. The config points at a credentials file under `/home/davis9001/.cloudflared/`, so it only runs on that machine. `vite.config.js` whitelists that host in `server.allowedHosts`.
+- `npm run build`: `vite build` → `.svelte-kit/cloudflare`. `npm run preview` runs `vite preview`.
+- `npm test`: Vitest (`vitest run`), configured in `vite.config.js` to pick up `src/**/*.test.js` in a Node environment. Unit tests cover `src/lib` (`auth`, `oauth`, `waitlist`) and the server handlers for the email action, `/admin`, and the admin Discord login. `src/lib/kv.test-helper.js` is an in-memory KV stand-in. Single file: `npx vitest run src/lib/waitlist.test.js`.
+- `npm run check`: `svelte-kit sync && svelte-check`. `checkJs` is off in `jsconfig.json`, so this checks `.svelte` files and JSDoc-annotated types only loosely.
+- **There is no lint or format script, and no deploy script.** `wrangler.toml` declares `pages_build_output_dir` but does not say how production gets deployed. Run `npm test`, `npm run check` and `npm run build` before committing.
+- `node scripts/build-og.mjs` regenerates `static/og.png` (dark) and `static/og-unicorn.png` (the `?unicorn=true` light theme). It lifts the hero's geometry straight out of `src/routes/+page.svelte` and takes the copy and date from `src/lib/seo.js`. Run it after changing the hero or the launch date, then commit the PNGs.
+- `node scripts/build-icons.mjs` regenerates the icons and `static/site.webmanifest` from `../design/logos/icon.svg` (a sibling repo) and `static/favicon.svg`. The touch icons are flattened onto `#1B0E20` because Apple rejects alpha. Both scripts need ImageMagick 7 (`magick`) and are not part of `build`. Edit the scripts, not the PNG output.
+- `./scripts/set-dev-secret.sh <VAR>` writes the clipboard contents into `.dev.vars` without echoing them. It refuses to run if `.dev.vars` is not gitignored.
+
+## Cloudflare config
+
+- `wrangler.toml`: project `teaser`, a single binding, KV `WAITLIST`. There is no D1 or R2.
+- Env vars, from `.dev.vars.example` (local values go in the gitignored `.dev.vars`; types are in `src/app.d.ts`): `DISCORD_WEBHOOK_URL`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `GITHUB_CLIENT_ID/SECRET`, `GOOGLE_CLIENT_ID/SECRET`, `FACEBOOK_CLIENT_ID/SECRET`, `APPLE_CLIENT_ID` (the Services ID), `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` (the .p8 PEM). A join provider with unset vars is simply not rendered. One Discord app serves both admin login and the join button, so it needs both redirect URIs registered.
+- `_headers` (repo root): Cloudflare Pages header rules. It caches `/_app/immutable/*` forever, sets no-cache on `*.html`, adds `nosniff` on `/*`, and sets `no-store` on `/auth/*` and `/admin/*`. Pages applies these to static assets only. SSR responses get their headers from `src/hooks.server.js` instead: no-store on HTML and all `/auth` and `/admin` responses (including redirects and data), `nosniff` everywhere, and `X-Frame-Options: DENY` plus `frame-ancestors 'none'` on `/admin`, preserving any existing CSP restrictions. Immutable response headers are copied before modification.
+
+## Architecture
+
+- **`/` (`src/routes/+page.svelte`, ~3.5k lines):** a canvas hero (globe, towers, a flying glyph), a countdown to `LAUNCH_ISO`, an audio track (`static/audio/`) that drives a light show, and a light "unicorn" theme toggled with `?unicorn=true`. `+page.server.js` loads the configured providers and has the email waitlist action. That action rejects fake or disposable addresses, collects a lot of request, geo and Cloudflare data plus client-fingerprint data (`_clientData`), writes it to KV, and posts it to the Discord webhook.
+- **`src/lib/seo.js`** is the single source for the site name/URL, `LAUNCH_ISO` (2026-11-21 19:00 -07:00, Arizona), `SOCIAL_LINKS` (also used for the JSON-LD `sameAs`), and descriptions. `Seo.svelte` renders them into the page.
+- **Waitlist KV keys** (`src/lib/waitlist.js`): `entry:<uid>`, `seen_email:<email>`, `counter:unique_emails`. The Discord link flow adds `counter:unique_discords`. Every write path has to keep this shape, or `/admin` can no longer read the list. Both the email action and the OAuth join callback go through `saveEntry` and `notifyJoin`; the email-only helpers `isFakeEmail`, `collectServerData` (drops `Cookie`/`Authorization` before storing `rawHeaders`) and `parseClientData` (JSON object, ≤16 KiB) live in the same module.
+- **OAuth join** (`src/lib/oauth.js`, `/auth/join/[provider]` and its `callback`): providers are github, discord, google, facebook, and apple. The routes are generic and use the `join_state` cookie for CSRF. Apple's client secret is an ES256 JWT minted on each request. These routes only capture a verified email and never create a session.
+- **Admin:** `/auth/discord` → `callback` accepts only the Discord username `davis9001` (hardcoded as `ALLOWED_USER`). The login is bound to a random OAuth `state` held in the httpOnly `admin_state` cookie (path `/auth/discord`, 10 minutes). The callback sets an HMAC-signed `admin_session` cookie (`src/lib/auth.js`, keyed with `DISCORD_CLIENT_SECRET`, 7 days with a finite expiry strictly after the current time, verified with `crypto.subtle.verify`). It is **not httpOnly on purpose**: `+layout.svelte` and `admin/+page.svelte` copy it into `localStorage` and write it back when the cookie is missing. Making it httpOnly breaks that; keeping it readable means any script on the origin can read the admin session, so do not add third-party script without revisiting this. `hooks.server.js` verifies the cookie into `locals.user`. `/admin` lists, archives, and unarchives KV entries; the actions only accept `entry:` keys.
+- **`/auth/discord/link` is unreferenced and does not work.** Nothing in the UI links to it since the confirmation screen dropped the button. Its callback looks up `entry:<email>`, but entries are keyed `entry:<uid>`, so it never updates an entry (it only bumps `counter:unique_discords` and posts a webhook). It also signs whatever `?email=` it is given, so the signed state proves nothing about who owns the email. Fix both before linking to it again.
+- **Other pages:** `/hammurabi` is a hidden essay page reached only from a cuneiform mark on the home page. It uses its own theme and the subset font `static/fonts/cuneiform-subset.woff2`. `(legal)/privacy` and `(legal)/terms` are the legal pages. `sitemap.xml` uses fixed `lastmod` dates, so bump them by hand when a page changes. `robots.txt` disallows `/admin` and `/auth`.

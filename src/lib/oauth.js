@@ -66,7 +66,9 @@ const CONFIG = {
 
 /** @param {string} p */
 export function providerConfig(p) {
-	return CONFIG[/** @type {keyof typeof CONFIG} */ (p)] ?? null;
+	// Own keys only: `CONFIG['__proto__']` is Object.prototype, not null.
+	if (!Object.hasOwn(CONFIG, p)) return null;
+	return CONFIG[/** @type {keyof typeof CONFIG} */ (p)];
 }
 
 /**
