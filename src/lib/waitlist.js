@@ -4,7 +4,7 @@
  * Both paths must write the same shape or /admin stops being able to read the
  * list. Keys:
  *   entry:<uid>             one submission
- *   seen_email:<email>      dedupe marker
+ *   seen_email:<email>      dedupe marker (key from dedupeEmail: Gmail dots folded, +tags kept)
  *   counter:unique_emails   running count of distinct emails
  */
 
@@ -40,8 +40,14 @@ export async function saveEntry(kv, entry) {
 		return { stored: false, duplicate: false };
 	}
 
-	const emailKey = `seen_email:${entry.email.toLowerCase()}`;
+	const lower = entry.email.toLowerCase();
+	const emailKey = `seen_email:${dedupeEmail(entry.email)}`;
 	if (await kv.get(emailKey)) return { stored: false, duplicate: true };
+	// Markers written before Gmail dots were folded are keyed by the plain
+	// lowercase address; honour those too so an existing signup stays one.
+	if (`seen_email:${lower}` !== emailKey && (await kv.get(`seen_email:${lower}`))) {
+		return { stored: false, duplicate: true };
+	}
 
 	const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 	await kv.put(`entry:${uid}`, JSON.stringify(entry));
@@ -50,6 +56,28 @@ export async function saveEntry(kv, entry) {
 	await kv.put('counter:unique_emails', String(current + 1));
 
 	return { stored: true, duplicate: false };
+}
+
+/**
+ * The dedupe identity of an email: trimmed and lowercased, and for Gmail
+ * (gmail.com / googlemail.com) with the dots in the local part removed, since
+ * Gmail ignores them and n.a.me@gmail.com reaches name@gmail.com. "+tags" are
+ * deliberately KEPT: a tagged address is treated as its own signup (David,
+ * 2026-10-08). Only the dedupe key uses this; the stored entry keeps the
+ * address exactly as typed.
+ *
+ * @param {string} email
+ * @returns {string}
+ */
+export function dedupeEmail(email) {
+	const e = email.trim().toLowerCase();
+	const at = e.lastIndexOf('@');
+	if (at < 1) return e;
+	let local = e.slice(0, at);
+	let domain = e.slice(at + 1);
+	if (domain === 'googlemail.com') domain = 'gmail.com';
+	if (domain === 'gmail.com') local = local.replaceAll('.', '');
+	return `${local}@${domain}`;
 }
 
 // ── Email-form helpers ───────────────────────────────────────────────────────

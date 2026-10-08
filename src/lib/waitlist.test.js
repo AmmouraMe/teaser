@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { saveEntry, notifyJoin, isFakeEmail, collectServerData, parseClientData, MAX_CLIENT_DATA } from './waitlist.js';
+import { saveEntry, dedupeEmail, notifyJoin, isFakeEmail, collectServerData, parseClientData, MAX_CLIENT_DATA } from './waitlist.js';
 import { memoryKV } from './kv.test-helper.js';
 
 afterEach(() => {
@@ -35,6 +35,41 @@ describe('saveEntry', () => {
 		expect(await saveEntry(kv, entry('a@example.org'))).toEqual({ stored: false, duplicate: true });
 		expect(put).not.toHaveBeenCalled();
 		expect(kv.store).toEqual(before);
+	});
+
+	it('treats Gmail addresses that differ only by dots as one signup', async () => {
+		const kv = memoryKV();
+		expect(await saveEntry(kv, entry('Na.Me@gmail.com'))).toMatchObject({ stored: true });
+		expect(await saveEntry(kv, entry('name@googlemail.com'))).toEqual({ stored: false, duplicate: true });
+		expect(await saveEntry(kv, entry('n.a.m.e@gmail.com'))).toEqual({ stored: false, duplicate: true });
+		expect(kv.store.get('counter:unique_emails')).toBe('1');
+		const stored = [...kv.store.entries()].find(([k]) => k.startsWith('entry:'));
+		expect(JSON.parse(stored?.[1] ?? '').email).toBe('Na.Me@gmail.com');
+	});
+
+	it('keeps +tagged addresses as separate signups', async () => {
+		const kv = memoryKV();
+		await saveEntry(kv, entry('name@gmail.com'));
+		expect(await saveEntry(kv, entry('name+1@gmail.com'))).toMatchObject({ stored: true });
+	});
+
+	it('honours dedupe markers written before dots were folded', async () => {
+		const kv = memoryKV();
+		kv.store.set('seen_email:na.me@gmail.com', '1');
+		expect(await saveEntry(kv, entry('Na.Me@gmail.com'))).toEqual({ stored: false, duplicate: true });
+	});
+});
+
+describe('dedupeEmail', () => {
+	it.each([
+		['  Na.Me@Gmail.com ', 'name@gmail.com'],
+		['na.me@googlemail.com', 'name@gmail.com'],
+		['na.me+tag@gmail.com', 'name+tag@gmail.com'],
+		['na.me@example.org', 'na.me@example.org'],
+		['A.B+x@Example.org', 'a.b+x@example.org'],
+		['no-at-sign', 'no-at-sign'],
+	])('%j -> %j', (input, want) => {
+		expect(dedupeEmail(input)).toBe(want);
 	});
 });
 
