@@ -1,5 +1,6 @@
 import { configuredProviders } from '$lib/oauth.js';
 import { saveEntry, notifyJoin, isFakeEmail, collectServerData, parseClientData } from '$lib/waitlist.js';
+import { checkRateLimit, clientBucket } from '$lib/ratelimit.js';
 
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ platform, url }) {
@@ -28,6 +29,19 @@ export const actions = {
 			return { success: false, error: 'It knows.' };
 		}
 
+		const kv = platform?.env?.WAITLIST;
+
+		// Per-client limit. One KV read here; the write happens only if this
+		// signup is actually stored, so rejected and repeat submissions cost no
+		// writes at all.
+		const limit = await checkRateLimit(kv, clientBucket(request, event)).catch((err) => {
+			console.error('rate limit read failed:', err);
+			return null;
+		});
+		if (limit && !limit.allowed) {
+			return { success: false, error: 'Too many tries. Come back in an hour.' };
+		}
+
 		// ── Collect all available data ──
 		const ts = new Date().toISOString();
 		const serverData = collectServerData(request, event);
@@ -44,11 +58,24 @@ export const actions = {
 
 		// Same writer and notifier as the OAuth join routes, so every path
 		// keeps the KV shape /admin reads.
+		let saved;
 		try {
-			await saveEntry(platform?.env?.WAITLIST, entry);
+			saved = await saveEntry(kv, entry);
 		} catch (err) {
 			console.error('KV write failed:', err);
 			return { success: false, error: 'Something broke. Try again.' };
+		}
+
+		// A repeat of an email already on the list wrote nothing. Answer the
+		// same as a first signup, so the form does not reveal who is on the list.
+		if (saved.duplicate) return { success: true, email };
+
+		if (saved.stored && limit) {
+			try {
+				await limit.consume();
+			} catch (err) {
+				console.error('rate limit write failed:', err);
+			}
 		}
 
 		// Never throws; the entry is already saved.
