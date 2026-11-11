@@ -21,7 +21,7 @@ function isFakeEmail(email) {
 /**
  * Send a waitlist entry to a Discord channel via webhook.
  * @param {string} webhookUrl
- * @param {{ name: string; email: string; insecurity: string; ts: string; server: Record<string, any>; client: Record<string, any> }} entry
+ * @param {{ name?: string; email: string; insecurity?: string; ts: string; server: Record<string, any>; client: Record<string, any> }} entry
  */
 async function notifyDiscord(webhookUrl, entry) {
 	const s = entry.server || {};
@@ -71,12 +71,15 @@ async function notifyDiscord(webhookUrl, entry) {
 	// We split into multiple embeds to fit everything.
 
 	// ── Embed 1: Core info + Server geo/network ──
+	// The form is email-only now, so there is no name or insecurity answer.
+	// Discord rejects the whole message (400) when a field has no value, so
+	// only add those two when present.
 	const embed1Fields = [
-		{ name: 'Name', value: entry.name, inline: true },
 		{ name: 'Email', value: entry.email, inline: true },
-		{ name: 'Submitted', value: entry.ts, inline: true },
-		{ name: "What's Stopping Them", value: entry.insecurity }
+		{ name: 'Submitted', value: entry.ts, inline: true }
 	];
+	if (entry.name) embed1Fields.unshift({ name: 'Name', value: entry.name, inline: true });
+	if (entry.insecurity) embed1Fields.push({ name: "What's Stopping Them", value: entry.insecurity });
 
 	const geoBlock = pickLines(s, geoKeys);
 	if (geoBlock) embed1Fields.push({ name: '\uD83C\uDF0D Location & Geo', value: geoBlock });
