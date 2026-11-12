@@ -6,5 +6,9 @@ export default defineConfig({
 	server: {
 		port: 4237,
 		allowedHosts: ['ammoura-dev.starspace.group']
+	},
+	test: {
+		include: ['src/**/*.test.js'],
+		environment: 'node'
 	}
 });
