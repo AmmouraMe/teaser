@@ -2329,6 +2329,17 @@
 			<audio bind:this={audioEl} src="/audio/01-birth.mp3" preload="metadata"
 				onplay={onPlay} onpause={onPause} onended={onEnded}></audio>
 
+			<!-- The first thing you can own: the hoodie, sold on David's own shop
+			     (davis9001.com) until the Ammoura storefront exists. 2026-11-13. -->
+			<a class="drop" href="https://davis9001.com/shop/ammoura" target="_blank" rel="noopener">
+				<span class="drop-shot"><img src="/merch/ammoura-hoodie.webp" alt="The Ammoura hoodie, black" width="88" height="88" loading="eager" decoding="async" /></span>
+				<span class="drop-text">
+					<span class="drop-kicker"><span class="drop-dot" aria-hidden="true"></span>Drop 01 &middot; Out now</span>
+					<span class="drop-name">The Ammoura Hoodie</span>
+					<span class="drop-cta">Get it at davis9001.com <span class="drop-arrow" aria-hidden="true">&rarr;</span></span>
+				</span>
+			</a>
+
 			<form
 				class="join"
 				method="POST"
@@ -3147,6 +3158,108 @@
 	.play-btn:hover .play-track,
 	.play-btn:focus-visible .play-track {
 		opacity: 0.75;
+	}
+
+	/* ── Merch drop ── */
+	.drop {
+		position: relative;
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+		width: 100%;
+		max-width: 30rem;
+		margin: 0 auto 2rem;
+		padding: 0.75rem 1.25rem 0.75rem 0.75rem;
+		border: 1px solid rgb(var(--accent-rgb) / 0.45);
+		border-radius: 18px;
+		background: rgb(var(--panel-rgb) / 0.72);
+		backdrop-filter: blur(10px);
+		color: var(--ink);
+		text-decoration: none;
+		text-align: left;
+		overflow: hidden;
+		box-shadow: 0 0 0 0 rgb(var(--accent-rgb) / 0);
+		transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+	}
+	.drop::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(110deg, transparent 30%, rgb(var(--accent-rgb) / 0.18) 50%, transparent 70%);
+		transform: translateX(-100%);
+		animation: drop-sheen 4.5s ease-in-out infinite;
+		pointer-events: none;
+	}
+	.drop:hover,
+	.drop:focus-visible {
+		transform: translateY(-2px);
+		border-color: rgb(var(--accent-rgb));
+		box-shadow: 0 10px 40px -10px rgb(var(--accent-rgb) / 0.55);
+	}
+	.drop-shot {
+		flex: none;
+		width: 88px;
+		height: 88px;
+		border-radius: 12px;
+		overflow: hidden;
+		background: #0b0b0d;
+	}
+	.drop-shot img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		transition: transform 0.4s ease;
+	}
+	.drop:hover .drop-shot img { transform: scale(1.08); }
+	.drop-text {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		min-width: 0;
+	}
+	.drop-kicker {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+		font-size: 0.68rem;
+		letter-spacing: 0.22em;
+		text-transform: uppercase;
+		color: rgb(var(--accent-rgb));
+	}
+	.drop-dot {
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		background: rgb(var(--accent-rgb));
+		animation: drop-pulse 1.6s ease-in-out infinite;
+	}
+	.drop-name {
+		font-size: 1.15rem;
+		font-weight: 700;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+	}
+	.drop-cta {
+		font-size: 0.8rem;
+		opacity: 0.7;
+		letter-spacing: 0.06em;
+	}
+	.drop-arrow {
+		display: inline-block;
+		transition: transform 0.25s ease;
+	}
+	.drop:hover .drop-arrow { transform: translateX(4px); }
+	@keyframes drop-sheen {
+		0%, 55% { transform: translateX(-100%); }
+		100% { transform: translateX(100%); }
+	}
+	@keyframes drop-pulse {
+		0%, 100% { box-shadow: 0 0 0 0 rgb(var(--accent-rgb) / 0.6); }
+		50% { box-shadow: 0 0 0 6px rgb(var(--accent-rgb) / 0); }
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.drop::before, .drop-dot { animation: none; }
+		.drop, .drop-shot img, .drop-arrow { transition: none; }
 	}
 
 	/* ── Single-row join form ── */
