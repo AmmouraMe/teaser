@@ -10,7 +10,6 @@
 		SITE_DESCRIPTION,
 		PRODUCT_DESCRIPTION,
 		CAPABILITIES,
-		LAUNCH_ISO,
 		DISCORD_URL,
 		SOCIAL_LINKS,
 		OG_IMAGE_PATH,
@@ -21,40 +20,9 @@
 		unicornRequested
 	} from '$lib/seo.js';
 
-	// The countdown target is LAUNCH_ISO itself. It used to be a second copy of
-	// the same instant written out here, which is one edit away from a page that
-	// counts down to one date and tells crawlers another.
-	const TARGET = new Date(LAUNCH_ISO).getTime();
-	let days = $state('--');
-	let hours = $state('--');
-	let minutes = $state('--');
-	let seconds = $state('--');
-
-	function updateCountdown() {
-		const diff = TARGET - Date.now();
-		if (diff <= 0) {
-			days = '00'; hours = '00'; minutes = '00'; seconds = '00';
-			return false;
-		}
-		days = String(Math.floor(diff / 86400000)).padStart(2, '0');
-		hours = String(Math.floor((diff % 86400000) / 3600000)).padStart(2, '0');
-		minutes = String(Math.floor((diff % 3600000) / 60000)).padStart(2, '0');
-		seconds = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0');
-		return true;
-	}
-
-	onMount(() => {
-		updateCountdown();
-		const interval = setInterval(() => {
-			if (!updateCountdown()) clearInterval(interval);
-		}, 1000);
-		return () => clearInterval(interval);
-	});
-
 	// ── 3D Wireframe Flight ──
 	let flightCanvas = $state();
 	let taglineEl = $state();
-	const FLIGHT_START = new Date('2026-03-22T00:00:00-05:00').getTime();
 
 	// While the track is playing, the arc IS the track: the number takes off on
 	// the first note and lands on the last. Read straight off the audio element
@@ -64,14 +32,15 @@
 
 	let trackStarted = $state(false);
 
-	/** Where the arc puts the creature when nothing is playing: the real
-	    countdown, March 22 → launch. This is its post. */
-	function countdownProgress() {
-		return Math.max(0, Math.min(1, (Date.now() - FLIGHT_START) / (TARGET - FLIGHT_START)));
+	/** Where the arc puts the creature when nothing is playing: halfway along.
+	    There is no date to count to, so this is its post. */
+	const REST_PROGRESS = 0.5;
+	function restProgress() {
+		return REST_PROGRESS;
 	}
 
-	// How much of the arc the track owns: 1 while it plays, 0 when the countdown
-	// has it back. Eased rather than switched, because the two positions are a
+	// How much of the arc the track owns: 1 while it plays, 0 when the rest
+	// position has it back. Eased rather than switched, because the two positions are a
 	// long way apart — pressing play used to teleport the glyph to the start of
 	// the arc, and stopping used to teleport it back. Now it flies.
 	let flightMix = 0;
@@ -82,14 +51,14 @@
 	const FLIGHT_RETURN = 0.022;
 
 	function getFlightProgress() {
-		const countdown = countdownProgress();
+		const rest = restProgress();
 		const d = audioEl?.duration;
 		if (trackStarted && Number.isFinite(d) && d > 0) {
 			flightHeld = Math.max(0, Math.min(1, audioEl.currentTime / d));
 		}
 		const want = playing ? 1 : 0;
 		flightMix += (want - flightMix) * (want > flightMix ? FLIGHT_TAKE : FLIGHT_RETURN);
-		return countdown + (flightHeld - countdown) * flightMix;
+		return rest + (flightHeld - rest) * flightMix;
 	}
 
 	onMount(() => {
@@ -106,13 +75,11 @@
 		const ctx = flightCanvas.getContext('2d');
 		if (!ctx) return;
 
-		// 3D wireframe "21" — launch day, swept as tubes along digit centerlines.
+		// 3D wireframe "A" — Ammoura, swept as tubes along letter centerlines.
 		//
-		// It used to be a hand-built "9": a torus for the bowl and a cylinder for
-		// the tail. Two digits do not decompose that neatly, so the shape is now
-		// described the way a sign-writer would describe it — a centerline path
-		// per stroke — and one sweep turns each path into the same round tube.
-		// Moving launch day again means editing DIGITS, not the geometry.
+		// The shape is described the way a sign-writer would describe it — a
+		// centerline path per stroke — and one sweep turns each path into the same
+		// round tube. Changing the glyph means editing DIGITS, not the geometry.
 		const TWO_PI = Math.PI * 2;
 		const V3 = [];
 		const E3 = [];
@@ -122,9 +89,8 @@
 		const arcSegs = 5;      // segments per quarter-turn of a curved stroke
 		const MAX_STEP = 0.15;  // longest gap between rings, so straights get rungs too
 
-		// Two digits are wider than one, so the pair is scaled to keep roughly the
-		// ink area the old single digit had. Uniform, so the tube thins with it.
-		const GLYPH_SCALE = 0.78;
+		// Uniform scale, so the tube thins with it.
+		const GLYPH_SCALE = 0.95;
 
 		// Digit space: z is across, y is up, baseline at -0.65 and cap at 0.85.
 		// The model is flat in x — the view yaw turns z into screen-width — so a
@@ -157,25 +123,15 @@
 
 		const D = Math.PI / 180;
 
-		// "2": a bowl over the top, a diagonal down to the baseline, a flat foot.
-		// One continuous stroke — a 2 is drawn without lifting the pen. The bowl's
-		// own exit point at -40 degrees is where the diagonal starts.
-		const twoBowl = arcPts(0, 0.47, 0.38, 195 * D, -40 * D);
-		const two = [[...twoBowl, [-0.38, BASE_Y], [0.38, BASE_Y]]];
-
-		// "1": flag, stem, and a foot. The foot is a separate stroke — it crosses
-		// the stem rather than continuing it, so sweeping them as one path would
-		// put a kink at the join.
-		const one = [
-			[[-0.24, 0.56], [0, CAP_Y], [0, BASE_Y]],
-			[[-0.25, BASE_Y], [0.25, BASE_Y]],
+		// "A": two legs meeting at the apex, and a crossbar. The legs are one
+		// continuous stroke; the bar crosses them, so it is its own stroke.
+		const letterA = [
+			[[-0.4, BASE_Y], [0, CAP_Y], [0.4, BASE_Y]],
+			[[-0.21, -0.18], [0.21, -0.18]],
 		];
 
 		// Laid out left to right by box width, then centred on z = 0.
-		const DIGITS = [
-			{ strokes: two, halfW: 0.38 },
-			{ strokes: one, halfW: 0.25 },
-		];
+		const DIGITS = [{ strokes: letterA, halfW: 0.4 }];
 		const DIGIT_GAP = 0.12;
 
 		/**
@@ -237,12 +193,12 @@
 			for (const v of V3) { v[0] *= GLYPH_SCALE; v[1] *= GLYPH_SCALE; v[2] *= GLYPH_SCALE; }
 		}
 
-		// The unicorn — what flies the arc in the light theme, where the launch
-		// date flies it in the dark one.
+		// The unicorn — what flies the arc in the light theme, where the letter
+		// A flies it in the dark one.
 		//
 		// It is described exactly the way the digits are: centreline strokes in
 		// the same zy plane, through the same tube sweep. That is the whole reason
-		// the "21" was rebuilt as paths rather than hand-assembled solids — a
+		// the glyph was built as paths rather than hand-assembled solids — a
 		// sign-writer's description of a shape does not care whether the shape is
 		// a numeral. Facing +z, which the view yaw turns into screen-right, so the
 		// unicorn faces along its own direction of travel down the arc.
@@ -559,7 +515,7 @@
 		// white line on it is an invisible line; the pink edge is what holds the
 		// shape, and the white is what makes the shape read as white.
 		//
-		// Light theme only: the dark theme flies the "21" and never asks for these.
+		// Light theme only: the dark theme flies the "A" and never asks for these.
 		const UNICORN_PAINT = {
 			tail:    [['rgba(226,74,150,0.40)', 1.5], ['rgba(255,152,201,0.95)', 0.68]],
 			mane:    [['rgba(226,74,150,0.44)', 1.5], ['rgba(255,158,205,0.98)', 0.68]],
@@ -625,7 +581,7 @@
 		// the near side at the bright end, so the body has real colour range
 		// across its own width instead of one flat tint fading out.
 
-		// One revolution, in milliseconds. Slow on purpose: the countdown is what
+		// One revolution, in milliseconds. Slow on purpose: the globe is what
 		// the eye is meant to land on, and a fast globe steals it.
 		const GLOBE_SPIN_MS = 90000;
 
@@ -1022,7 +978,7 @@
 
 			// Arc endpoint = the bottom-right corner of the tower pair, where the
 			// two towers stand on the planet. It used to be a third of the way
-			// down the right tower, which left the 21 landing in mid-air against
+			// down the right tower, which left the glyph landing in mid-air against
 			// the side of the "11"; the foot of the pair is where a flight path
 			// actually terminates.
 			const endX = baseX + towerGap / 2 + towerW; // right edge of right tower
@@ -1449,7 +1405,7 @@
 				ctx.strokeRect(tx2, towerBaseY - towerH, towerW, towerH);
 			}
 
-			// 3D "21" orientation: aligns with path tangent
+			// 3D glyph orientation: aligns with path tangent
 			const tan = bzd(t, P0, P1, P2);
 			const tangentAngle = Math.atan2(tan[1], tan[0]);
 			const bob = Math.sin(Date.now() * 0.0015) * 0.04;
@@ -1595,8 +1551,8 @@
 	// alone told a search result nothing, and the slogan already owns the page.
 	const siteTitle = 'Ammoura — Website and Online Store Builder';
 
-	// The launch is a real dated event and the page counts down to it, so it is
-	// worth describing to a crawler rather than leaving as decoration.
+	// Describe the product and its maker to a crawler rather than leaving them
+	// as decoration.
 	const launchSchema = [
 		{
 			'@type': 'Organization',
@@ -1620,8 +1576,7 @@
 			url: SITE_URL + '/',
 			image: SITE_URL + OG_IMAGE_PATH,
 			featureList: CAPABILITIES,
-			publisher: { '@id': SITE_URL + '/#organization' },
-			datePublished: LAUNCH_ISO
+			publisher: { '@id': SITE_URL + '/#organization' }
 		}
 	];
 
@@ -1632,7 +1587,7 @@
 	// BIRTH is track 1 of Ammoura.me, and its album route is "/" — this page.
 	// ── Theme ──
 	// Dark is the teaser. Light is the other side of the joke: a pastel sky, a
-	// unicorn flying the arc the launch date flew, and a candy mountain standing
+	// unicorn flying the arc the letter A flies, and a candy mountain standing
 	// where the towers stood.
 	//
 	// It does NOT follow prefers-color-scheme. Swapping a launch teaser's hero
@@ -1812,7 +1767,7 @@
 
 	// ── The rig ──
 	// Concert lighting, hung off the towers and pointed at everything. A single
-	// smoothed loudness was enough to make the 21 bob; it is nowhere near enough
+	// smoothed loudness was enough to make the glyph bob; it is nowhere near enough
 	// to run a light show, because a show is made of *events* — a kick lands, the
 	// colour changes, the beams snap somewhere new. So the rig runs its own onset
 	// detection, per band, and the fixtures are driven by hits rather than by a
@@ -2025,7 +1980,7 @@
 		if (audioCtx?.state === 'suspended') audioCtx.resume();
 	}
 
-	// Paused mid-track. The arc goes back to the countdown either way — stopping
+	// Paused mid-track. The arc goes back to its rest position either way — stopping
 	// the music puts the creature back on its post — and getFlightProgress eases
 	// the handover, so this only has to say the track is no longer playing.
 	function onPause() {
@@ -2305,15 +2260,7 @@
 			</h1>
 			<p class="hint">A website, a storefront, and everything behind them.</p>
 
-			<div class="countdown">
-				<div class="countdown-segment"><span class="countdown-value">{days}</span><span class="countdown-label">Days</span></div>
-				<span class="countdown-sep">:</span>
-				<div class="countdown-segment"><span class="countdown-value">{hours}</span><span class="countdown-label">Hrs</span></div>
-				<span class="countdown-sep">:</span>
-				<div class="countdown-segment"><span class="countdown-value">{minutes}</span><span class="countdown-label">Min</span></div>
-				<span class="countdown-sep">:</span>
-				<div class="countdown-segment"><span class="countdown-value">{seconds}</span><span class="countdown-label">Sec</span></div>
-			</div>
+			<p class="coming-soon">Coming soon</p>
 
 			<!-- Track 1 of Ammoura.me. Playing it re-runs the flight on a loop. -->
 			<button class="play-btn" onclick={togglePlay} aria-pressed={playing}
@@ -2328,6 +2275,17 @@
 			</button>
 			<audio bind:this={audioEl} src="/audio/01-birth.mp3" preload="metadata"
 				onplay={onPlay} onpause={onPause} onended={onEnded}></audio>
+
+			<!-- The first thing you can own: the hoodie, sold on David's own shop
+			     (davis9001.com) until the Ammoura storefront exists. 2026-11-13. -->
+			<a class="drop" href="https://davis9001.com/shop/ammoura" target="_blank" rel="noopener">
+				<span class="drop-shot"><img src="/merch/ammoura-hoodie.webp" alt="The Ammoura hoodie, black" width="88" height="88" loading="eager" decoding="async" /></span>
+				<span class="drop-text">
+					<span class="drop-kicker"><span class="drop-dot" aria-hidden="true"></span>Drop 01 &middot; Out now</span>
+					<span class="drop-name">The Ammoura Hoodie</span>
+					<span class="drop-cta">Get it at davis9001.com <span class="drop-arrow" aria-hidden="true">&rarr;</span></span>
+				</span>
+			</a>
 
 			<form
 				class="join"
@@ -2559,76 +2517,23 @@
 		}
 	}
 
-	/* ── Countdown ── */
-	.countdown {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		margin-bottom: 2.5rem;
-	}
-
-	.countdown-segment {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		min-width: 3.2rem;
-	}
-
-	.countdown-value {
-		font-size: 1.6rem;
-		letter-spacing: 0.1em;
-		font-variant-numeric: tabular-nums;
-		font-weight: 400;
-	}
-
-	.countdown-label {
-		font-size: 0.6rem;
-		letter-spacing: 0.18em;
-		text-transform: uppercase;
-		opacity: 0.4;
-		margin-top: 0.15rem;
-	}
-
-	.countdown-sep {
+	/* ── Coming soon ── */
+	.coming-soon {
+		margin: 0 0 2.5rem;
 		font-size: 1.3rem;
-		opacity: 0.3;
-		align-self: flex-start;
-		margin-top: 0.15rem;
+		font-weight: 400;
+		letter-spacing: 0.3em;
+		text-transform: uppercase;
 	}
 
 	@media (min-width: 480px) {
-		.countdown {
-			gap: 0.75rem;
-		}
-		.countdown-segment {
-			min-width: 4rem;
-		}
-		.countdown-value {
-			font-size: 2.2rem;
-		}
-		.countdown-label {
-			font-size: 0.65rem;
-		}
-		.countdown-sep {
+		.coming-soon {
 			font-size: 1.6rem;
 		}
 	}
 
 	@media (min-width: 768px) {
-		.countdown {
-			gap: 1rem;
-		}
-		.countdown-segment {
-			min-width: 5rem;
-		}
-		.countdown-value {
-			font-size: 2.8rem;
-		}
-		.countdown-label {
-			font-size: 0.7rem;
-			letter-spacing: 0.2em;
-		}
-		.countdown-sep {
+		.coming-soon {
 			font-size: 2rem;
 		}
 	}
@@ -2676,7 +2581,7 @@
 	.tagline,
 	h1,
 	.hint,
-	.countdown {
+	.coming-soon {
 		text-shadow:
 			0 0 6px rgb(var(--halo-rgb) / 0.92),
 			0 1px 3px rgb(var(--halo-rgb) / 0.8);
@@ -3149,6 +3054,108 @@
 		opacity: 0.75;
 	}
 
+	/* ── Merch drop ── */
+	.drop {
+		position: relative;
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+		width: 100%;
+		max-width: 30rem;
+		margin: 0 auto 2rem;
+		padding: 0.75rem 1.25rem 0.75rem 0.75rem;
+		border: 1px solid rgb(var(--accent-rgb) / 0.45);
+		border-radius: 18px;
+		background: rgb(var(--panel-rgb) / 0.72);
+		backdrop-filter: blur(10px);
+		color: var(--ink);
+		text-decoration: none;
+		text-align: left;
+		overflow: hidden;
+		box-shadow: 0 0 0 0 rgb(var(--accent-rgb) / 0);
+		transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+	}
+	.drop::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(110deg, transparent 30%, rgb(var(--accent-rgb) / 0.18) 50%, transparent 70%);
+		transform: translateX(-100%);
+		animation: drop-sheen 4.5s ease-in-out infinite;
+		pointer-events: none;
+	}
+	.drop:hover,
+	.drop:focus-visible {
+		transform: translateY(-2px);
+		border-color: rgb(var(--accent-rgb));
+		box-shadow: 0 10px 40px -10px rgb(var(--accent-rgb) / 0.55);
+	}
+	.drop-shot {
+		flex: none;
+		width: 88px;
+		height: 88px;
+		border-radius: 12px;
+		overflow: hidden;
+		background: #0b0b0d;
+	}
+	.drop-shot img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		transition: transform 0.4s ease;
+	}
+	.drop:hover .drop-shot img { transform: scale(1.08); }
+	.drop-text {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		min-width: 0;
+	}
+	.drop-kicker {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+		font-size: 0.68rem;
+		letter-spacing: 0.22em;
+		text-transform: uppercase;
+		color: rgb(var(--accent-rgb));
+	}
+	.drop-dot {
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		background: rgb(var(--accent-rgb));
+		animation: drop-pulse 1.6s ease-in-out infinite;
+	}
+	.drop-name {
+		font-size: 1.15rem;
+		font-weight: 700;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+	}
+	.drop-cta {
+		font-size: 0.8rem;
+		opacity: 0.7;
+		letter-spacing: 0.06em;
+	}
+	.drop-arrow {
+		display: inline-block;
+		transition: transform 0.25s ease;
+	}
+	.drop:hover .drop-arrow { transform: translateX(4px); }
+	@keyframes drop-sheen {
+		0%, 55% { transform: translateX(-100%); }
+		100% { transform: translateX(100%); }
+	}
+	@keyframes drop-pulse {
+		0%, 100% { box-shadow: 0 0 0 0 rgb(var(--accent-rgb) / 0.6); }
+		50% { box-shadow: 0 0 0 6px rgb(var(--accent-rgb) / 0); }
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.drop::before, .drop-dot { animation: none; }
+		.drop, .drop-shot img, .drop-arrow { transition: none; }
+	}
+
 	/* ── Single-row join form ── */
 	.join {
 		width: 100%;
@@ -3160,24 +3167,47 @@
 		gap: 0.75rem;
 		align-items: stretch;
 	}
+	/* This is the one thing on the page we are asking a visitor to DO, and it was
+	   the hardest thing on the page to see: a bare underline at ink/0.4 with no
+	   background, which on the light theme's pastel sky reads as a stray hairline
+	   rather than a field. It gets the same panel-and-border treatment as the
+	   "built at" pill and the theme switch, so it joins the page's existing family
+	   of small chrome instead of shouting. */
 	.join-row input {
 		flex: 1 1 auto;
 		min-width: 0;
-		background: none;
-		border: none;
-		border-bottom: 1px solid rgb(var(--ink-rgb) / 0.4);
+		background: rgb(var(--panel-rgb) / 0.55);
+		/* 0.5, not the 0.22 the other small chrome uses, because those pieces sit
+		   on the dark sky and this one has to work on the light theme's pastel
+		   ground too. There the panel fill is white-on-near-white and contributes
+		   nothing, so the border is the whole field: at 0.22 it measured 1.54:1,
+		   under the 3:1 a control boundary needs. 0.5 gives 3.04:1 on light and
+		   5.3:1 on dark, so one value carries both. */
+		border: 1px solid rgb(var(--ink-rgb) / 0.5);
+		border-radius: 999px;
 		color: var(--ink);
 		font-family: inherit;
 		font-size: 1rem;
-		padding: 0.6rem 0;
-		border-radius: 0;
+		padding: 0.7rem 1.1rem;
+		transition:
+			border-color 0.2s ease,
+			background 0.2s ease;
 	}
+	/* The placeholder is the field's only visible label — there is no <label>,
+	   just an aria-label — so it has to be readable, not decorative. At the old
+	   0.3 it measured 1.86:1 against the light theme's ground, which is below
+	   even the large-text floor. 0.65 measures 4.65:1 and still reads as a hint.
+	   Quiet comes from the panel now, not from making the words disappear. */
 	.join-row input::placeholder {
-		color: rgb(var(--ink-rgb) / 0.3);
+		color: rgb(var(--ink-rgb) / 0.65);
+	}
+	.join-row input:hover {
+		border-color: rgb(var(--ink-rgb) / 0.7);
 	}
 	.join-row input:focus {
 		outline: none;
-		border-bottom-color: var(--ink);
+		border-color: var(--ink);
+		background: rgb(var(--panel-rgb) / 0.8);
 	}
 	.join-row button {
 		flex: 0 0 auto;
@@ -3185,9 +3215,17 @@
 		width: auto;
 		align-self: stretch;
 		padding: 0.7rem 1.6rem;
+		/* Matches the field beside it and the PLAY button above it. A square
+		   button against a pill-shaped input reads as two controls that arrived
+		   from different pages. */
+		border-radius: 999px;
 	}
+	/* Disabled until the address parses, which means this is how the button looks
+	   when the page first loads — and at 0.25 the only call to action on the site
+	   arrived looking like an empty rectangle, or like something broken. It has to
+	   read as "not yet", which needs it to be legible first. */
 	.join-row button:disabled {
-		opacity: 0.25;
+		opacity: 0.55;
 		cursor: default;
 		pointer-events: none;
 	}
@@ -3280,7 +3318,7 @@
 		.tagline {
 			margin-bottom: 1.25rem;
 		}
-		.countdown {
+		.coming-soon {
 			margin-bottom: 1.75rem;
 		}
 	}
@@ -3293,7 +3331,7 @@
 		.hint {
 			margin-bottom: 1.5rem;
 		}
-		.countdown {
+		.coming-soon {
 			margin-bottom: 1.5rem;
 		}
 	}
