@@ -2300,8 +2300,8 @@
 				}}
 				novalidate
 			>
-				<h2 class="join-title" id="join-title">Join the waitlist</h2>
-				<p class="join-sub">Get an email the day Ammoura opens.</p>
+				<h2 class="join-title" id="join-title">Get notified</h2>
+				<p class="join-sub">We'll email you the day Ammoura opens. Early sign-ups get special perks.</p>
 				<div class="join-row">
 					<input
 						id="join-email"
@@ -2315,7 +2315,7 @@
 					/>
 					<input type="hidden" name="_clientData" value={clientData} />
 					<button type="submit" disabled={!formValid || submitting}>
-						{submitting ? 'Joining…' : 'Join the waitlist'}
+						{submitting ? 'Signing up…' : 'Get notified'}
 					</button>
 				</div>
 				{#if formError}
