@@ -23,6 +23,7 @@
 	// ── 3D Wireframe Flight ──
 	let flightCanvas = $state();
 	let taglineEl = $state();
+	let heroEl = $state();
 
 	// While the track is playing, the arc IS the track: the number takes off on
 	// the first note and lands on the last. Read straight off the audio element
@@ -1026,16 +1027,40 @@
 		/** The theme's ink at an alpha — every white the draw loop used to hardcode. */
 		const inkA = (a) => `rgba(${pal().ink.join(',')},${Math.min(1, a * pal().lineBoost)})`;
 
+		// How far the page runs on below the hero: the in-flow footer, when it is
+		// in the flow. Zero where the footer is pinned over the hero.
+		let rigExtra = 0;
+		function updateRigExtra() {
+			let extra = 0;
+			const foot = document.querySelector('.site-footer');
+			if (heroEl && foot && getComputedStyle(foot).position === 'static') {
+				const heroBottom = heroEl.getBoundingClientRect().bottom;
+				extra = Math.max(0, Math.round(foot.getBoundingClientRect().bottom - heroBottom) + 24);
+			}
+			if (extra !== rigExtra) {
+				rigExtra = extra;
+				flightCanvas.style.setProperty('--rig-extra', extra + 'px');
+			}
+		}
+
 		let frame;
 		function draw() {
 			const dpr = devicePixelRatio || 1;
+			// On a short phone window the footer is in the flow, below the hero, and
+			// the canvas used to stop where the hero stops: the side beams, thrown
+			// from just under that edge, were sawn off in a hard line above the footer.
+			// The canvas now runs on to the bottom of the page, and the lights stand
+			// there. Everything that lays out the hero (the planet, the arc, the
+			// glyph) keeps using the hero's own height, `h`; `H` is the whole canvas.
+			updateRigExtra();
 			const w = flightCanvas.clientWidth;
-			const h = flightCanvas.clientHeight;
-			if (w === 0 || h === 0) { frame = requestAnimationFrame(draw); return; }
+			const H = flightCanvas.clientHeight;
+			const h = Math.max(1, H - rigExtra);
+			if (w === 0 || H === 0) { frame = requestAnimationFrame(draw); return; }
 			flightCanvas.width = w * dpr;
-			flightCanvas.height = h * dpr;
+			flightCanvas.height = H * dpr;
 			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-			ctx.clearRect(0, 0, w, h);
+			ctx.clearRect(0, 0, w, H);
 
 			const { P0, P1, P2, towerBaseX, towerBaseY } = getArcPoints(w, h);
 			const N = 120;
@@ -1080,8 +1105,8 @@
 				const { towerH } = getTowerDims(w);
 				for (const rig of RIGS) {
 					const ox = rig.at === 'towers' ? towerBaseX : rig.at === 'left' ? w * 0.06 : w * 0.94;
-					const oy = rig.at === 'towers' ? towerBaseY - towerH : h * 1.04;
-					drawRig(w, h, ox, oy, rig.beams, rig.wash);
+					const oy = rig.at === 'towers' ? towerBaseY - towerH : H + h * 0.04;
+					drawRig(w, H, ox, oy, rig.beams, rig.wash);
 				}
 			}
 
@@ -1385,7 +1410,7 @@
 				ctx.save();
 				ctx.globalCompositeOperation = P.blend;
 				ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${(flash * FLASH_PEAK * eqMix).toFixed(3)})`;
-				ctx.fillRect(0, 0, w, h);
+				ctx.fillRect(0, 0, w, H);
 				ctx.restore();
 			}
 
@@ -2243,7 +2268,7 @@
 
 <main>
 	{#if !submitted}
-		<section class="hero">
+		<section class="hero" bind:this={heroEl}>
 			<canvas class="flight-canvas" bind:this={flightCanvas}></canvas>
 			<p class="tagline" bind:this={taglineEl}>Build your empire</p>
 			<!-- Two spans, not a <br>: each sentence is its own line, and either one
@@ -2583,7 +2608,9 @@
 		top: 0;
 		left: 0;
 		width: 100%;
-		height: 100%;
+		/* Runs on past the hero to the bottom of the page when the footer is in
+		   the flow; --rig-extra is set by the draw loop. */
+		height: calc(100% + var(--rig-extra, 0px));
 		pointer-events: none;
 	}
 
