@@ -10,7 +10,6 @@
 		SITE_DESCRIPTION,
 		PRODUCT_DESCRIPTION,
 		CAPABILITIES,
-		LAUNCH_ISO,
 		DISCORD_URL,
 		SOCIAL_LINKS,
 		OG_IMAGE_PATH,
@@ -21,14 +20,9 @@
 		unicornRequested
 	} from '$lib/seo.js';
 
-	// The hero arc still follows the time left to LAUNCH_ISO, but nothing on the
-	// page shows a number: the page says "Coming soon".
-	const TARGET = new Date(LAUNCH_ISO).getTime();
-
 	// ── 3D Wireframe Flight ──
 	let flightCanvas = $state();
 	let taglineEl = $state();
-	const FLIGHT_START = new Date('2026-03-22T00:00:00-05:00').getTime();
 
 	// While the track is playing, the arc IS the track: the number takes off on
 	// the first note and lands on the last. Read straight off the audio element
@@ -38,14 +32,15 @@
 
 	let trackStarted = $state(false);
 
-	/** Where the arc puts the creature when nothing is playing: the real
-	    countdown, March 22 → launch. This is its post. */
-	function countdownProgress() {
-		return Math.max(0, Math.min(1, (Date.now() - FLIGHT_START) / (TARGET - FLIGHT_START)));
+	/** Where the arc puts the creature when nothing is playing: halfway along.
+	    There is no date to count to, so this is its post. */
+	const REST_PROGRESS = 0.5;
+	function restProgress() {
+		return REST_PROGRESS;
 	}
 
-	// How much of the arc the track owns: 1 while it plays, 0 when the countdown
-	// has it back. Eased rather than switched, because the two positions are a
+	// How much of the arc the track owns: 1 while it plays, 0 when the rest
+	// position has it back. Eased rather than switched, because the two positions are a
 	// long way apart — pressing play used to teleport the glyph to the start of
 	// the arc, and stopping used to teleport it back. Now it flies.
 	let flightMix = 0;
@@ -56,14 +51,14 @@
 	const FLIGHT_RETURN = 0.022;
 
 	function getFlightProgress() {
-		const countdown = countdownProgress();
+		const rest = restProgress();
 		const d = audioEl?.duration;
 		if (trackStarted && Number.isFinite(d) && d > 0) {
 			flightHeld = Math.max(0, Math.min(1, audioEl.currentTime / d));
 		}
 		const want = playing ? 1 : 0;
 		flightMix += (want - flightMix) * (want > flightMix ? FLIGHT_TAKE : FLIGHT_RETURN);
-		return countdown + (flightHeld - countdown) * flightMix;
+		return rest + (flightHeld - rest) * flightMix;
 	}
 
 	onMount(() => {
@@ -80,13 +75,11 @@
 		const ctx = flightCanvas.getContext('2d');
 		if (!ctx) return;
 
-		// 3D wireframe "21" — launch day, swept as tubes along digit centerlines.
+		// 3D wireframe "A" — Ammoura, swept as tubes along letter centerlines.
 		//
-		// It used to be a hand-built "9": a torus for the bowl and a cylinder for
-		// the tail. Two digits do not decompose that neatly, so the shape is now
-		// described the way a sign-writer would describe it — a centerline path
-		// per stroke — and one sweep turns each path into the same round tube.
-		// Moving launch day again means editing DIGITS, not the geometry.
+		// The shape is described the way a sign-writer would describe it — a
+		// centerline path per stroke — and one sweep turns each path into the same
+		// round tube. Changing the glyph means editing DIGITS, not the geometry.
 		const TWO_PI = Math.PI * 2;
 		const V3 = [];
 		const E3 = [];
@@ -96,9 +89,8 @@
 		const arcSegs = 5;      // segments per quarter-turn of a curved stroke
 		const MAX_STEP = 0.15;  // longest gap between rings, so straights get rungs too
 
-		// Two digits are wider than one, so the pair is scaled to keep roughly the
-		// ink area the old single digit had. Uniform, so the tube thins with it.
-		const GLYPH_SCALE = 0.78;
+		// Uniform scale, so the tube thins with it.
+		const GLYPH_SCALE = 0.95;
 
 		// Digit space: z is across, y is up, baseline at -0.65 and cap at 0.85.
 		// The model is flat in x — the view yaw turns z into screen-width — so a
@@ -131,25 +123,15 @@
 
 		const D = Math.PI / 180;
 
-		// "2": a bowl over the top, a diagonal down to the baseline, a flat foot.
-		// One continuous stroke — a 2 is drawn without lifting the pen. The bowl's
-		// own exit point at -40 degrees is where the diagonal starts.
-		const twoBowl = arcPts(0, 0.47, 0.38, 195 * D, -40 * D);
-		const two = [[...twoBowl, [-0.38, BASE_Y], [0.38, BASE_Y]]];
-
-		// "1": flag, stem, and a foot. The foot is a separate stroke — it crosses
-		// the stem rather than continuing it, so sweeping them as one path would
-		// put a kink at the join.
-		const one = [
-			[[-0.24, 0.56], [0, CAP_Y], [0, BASE_Y]],
-			[[-0.25, BASE_Y], [0.25, BASE_Y]],
+		// "A": two legs meeting at the apex, and a crossbar. The legs are one
+		// continuous stroke; the bar crosses them, so it is its own stroke.
+		const letterA = [
+			[[-0.4, BASE_Y], [0, CAP_Y], [0.4, BASE_Y]],
+			[[-0.21, -0.18], [0.21, -0.18]],
 		];
 
 		// Laid out left to right by box width, then centred on z = 0.
-		const DIGITS = [
-			{ strokes: two, halfW: 0.38 },
-			{ strokes: one, halfW: 0.25 },
-		];
+		const DIGITS = [{ strokes: letterA, halfW: 0.4 }];
 		const DIGIT_GAP = 0.12;
 
 		/**
@@ -211,12 +193,12 @@
 			for (const v of V3) { v[0] *= GLYPH_SCALE; v[1] *= GLYPH_SCALE; v[2] *= GLYPH_SCALE; }
 		}
 
-		// The unicorn — what flies the arc in the light theme, where the launch
-		// date flies it in the dark one.
+		// The unicorn — what flies the arc in the light theme, where the letter
+		// A flies it in the dark one.
 		//
 		// It is described exactly the way the digits are: centreline strokes in
 		// the same zy plane, through the same tube sweep. That is the whole reason
-		// the "21" was rebuilt as paths rather than hand-assembled solids — a
+		// the glyph was built as paths rather than hand-assembled solids — a
 		// sign-writer's description of a shape does not care whether the shape is
 		// a numeral. Facing +z, which the view yaw turns into screen-right, so the
 		// unicorn faces along its own direction of travel down the arc.
@@ -533,7 +515,7 @@
 		// white line on it is an invisible line; the pink edge is what holds the
 		// shape, and the white is what makes the shape read as white.
 		//
-		// Light theme only: the dark theme flies the "21" and never asks for these.
+		// Light theme only: the dark theme flies the "A" and never asks for these.
 		const UNICORN_PAINT = {
 			tail:    [['rgba(226,74,150,0.40)', 1.5], ['rgba(255,152,201,0.95)', 0.68]],
 			mane:    [['rgba(226,74,150,0.44)', 1.5], ['rgba(255,158,205,0.98)', 0.68]],
@@ -599,7 +581,7 @@
 		// the near side at the bright end, so the body has real colour range
 		// across its own width instead of one flat tint fading out.
 
-		// One revolution, in milliseconds. Slow on purpose: the countdown is what
+		// One revolution, in milliseconds. Slow on purpose: the globe is what
 		// the eye is meant to land on, and a fast globe steals it.
 		const GLOBE_SPIN_MS = 90000;
 
@@ -996,7 +978,7 @@
 
 			// Arc endpoint = the bottom-right corner of the tower pair, where the
 			// two towers stand on the planet. It used to be a third of the way
-			// down the right tower, which left the 21 landing in mid-air against
+			// down the right tower, which left the glyph landing in mid-air against
 			// the side of the "11"; the foot of the pair is where a flight path
 			// actually terminates.
 			const endX = baseX + towerGap / 2 + towerW; // right edge of right tower
@@ -1423,7 +1405,7 @@
 				ctx.strokeRect(tx2, towerBaseY - towerH, towerW, towerH);
 			}
 
-			// 3D "21" orientation: aligns with path tangent
+			// 3D glyph orientation: aligns with path tangent
 			const tan = bzd(t, P0, P1, P2);
 			const tangentAngle = Math.atan2(tan[1], tan[0]);
 			const bob = Math.sin(Date.now() * 0.0015) * 0.04;
@@ -1569,8 +1551,8 @@
 	// alone told a search result nothing, and the slogan already owns the page.
 	const siteTitle = 'Ammoura — Website and Online Store Builder';
 
-	// The launch is a real dated event and the page counts down to it, so it is
-	// worth describing to a crawler rather than leaving as decoration.
+	// Describe the product and its maker to a crawler rather than leaving them
+	// as decoration.
 	const launchSchema = [
 		{
 			'@type': 'Organization',
@@ -1594,8 +1576,7 @@
 			url: SITE_URL + '/',
 			image: SITE_URL + OG_IMAGE_PATH,
 			featureList: CAPABILITIES,
-			publisher: { '@id': SITE_URL + '/#organization' },
-			datePublished: LAUNCH_ISO
+			publisher: { '@id': SITE_URL + '/#organization' }
 		}
 	];
 
@@ -1606,7 +1587,7 @@
 	// BIRTH is track 1 of Ammoura.me, and its album route is "/" — this page.
 	// ── Theme ──
 	// Dark is the teaser. Light is the other side of the joke: a pastel sky, a
-	// unicorn flying the arc the launch date flew, and a candy mountain standing
+	// unicorn flying the arc the letter A flies, and a candy mountain standing
 	// where the towers stood.
 	//
 	// It does NOT follow prefers-color-scheme. Swapping a launch teaser's hero
@@ -1786,7 +1767,7 @@
 
 	// ── The rig ──
 	// Concert lighting, hung off the towers and pointed at everything. A single
-	// smoothed loudness was enough to make the 21 bob; it is nowhere near enough
+	// smoothed loudness was enough to make the glyph bob; it is nowhere near enough
 	// to run a light show, because a show is made of *events* — a kick lands, the
 	// colour changes, the beams snap somewhere new. So the rig runs its own onset
 	// detection, per band, and the fixtures are driven by hits rather than by a
@@ -1999,7 +1980,7 @@
 		if (audioCtx?.state === 'suspended') audioCtx.resume();
 	}
 
-	// Paused mid-track. The arc goes back to the countdown either way — stopping
+	// Paused mid-track. The arc goes back to its rest position either way — stopping
 	// the music puts the creature back on its post — and getFlightProgress eases
 	// the handover, so this only has to say the track is no longer playing.
 	function onPause() {

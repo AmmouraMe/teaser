@@ -12,7 +12,7 @@
  *
  * Why this is a script and not a drawing
  * --------------------------------------
- * The card shows the same planet, towers and flying date-glyph the hero draws.
+ * The card shows the same planet, towers and flying glyph the hero draws.
  * A hand-made copy of that artwork drifts the moment the page changes — and it
  * drifts silently, because nothing renders the card and the page side by side.
  *
@@ -20,8 +20,7 @@
  * `src/routes/+page.svelte` — the glyph builder and the globe block, verbatim —
  * evaluates them against a tiny recording shim that captures draw calls instead
  * of painting them, and emits what it recorded as SVG. Change the hero and
- * re-run this; the card follows. The wording and the launch date come from
- * `src/lib/seo.js`, which is already the single source of truth for both.
+ * re-run this; the card follows. The wording comes from `src/lib/seo.js`.
  *
  * The card is the page with the track playing — clouds on the globe and the
  * wireframe lit — because that is the better portrait of it. The shim feeds the
@@ -33,7 +32,7 @@
  * bargain as the lighting rig — geometry from the hero, painting by the card.
  *
  * Needs ImageMagick 7 (`magick`) for the SVG to PNG step. Deliberately NOT part
- * of `bun run build` / `npm run build`: run it when the hero or the date
+ * of `bun run build` / `npm run build`: run it when the hero or the wording
  * changes, and commit what it produces.
  */
 
@@ -73,23 +72,8 @@ function slice(src, startMarker, endMarker) {
 const page = readFileSync(PAGE, 'utf8');
 const seo = readFileSync(SEO, 'utf8');
 
-// The launch date, read from the one place that declares it.
-const isoMatch = seo.match(/LAUNCH_ISO = '([^']+)'/);
-if (!isoMatch) throw new Error('build-og: LAUNCH_ISO not found in src/lib/seo.js');
-const launch = new Date(isoMatch[1]);
-// Format in the launch's own zone, not the machine's, so a build on any box
-// prints the date the countdown actually ends on.
-const launchLabel = new Intl.DateTimeFormat('en-GB', {
-	day: 'numeric',
-	month: 'long',
-	year: 'numeric',
-	timeZone: 'America/Phoenix'
-})
-	.format(launch)
-	.toUpperCase();
-
 // The three pieces of the hero's drawing code, taken verbatim.
-const glyphSrc = slice(page, '// 3D wireframe "21"', '// 3D math helpers');
+const glyphSrc = slice(page, '// 3D wireframe "A"', '// 3D math helpers');
 // The globe's own constants. Starts at the tilt because the palettes moved out
 // to component scope when the light theme arrived — they come in separately,
 // below, since the rig needs them too.
@@ -590,7 +574,7 @@ module.exports = { ops };
 	);
 	parts.push(
 		`<text x="${CX}" y="520" text-anchor="middle" font-family="${SANS}" font-size="23"` +
-			` letter-spacing="9" fill="${INK}" fill-opacity="0.92" ${shadow}>${esc(launchLabel)}</text>`
+			` letter-spacing="9" fill="${INK}" fill-opacity="0.92" ${shadow}>COMING SOON</text>`
 	);
 	parts.push(
 		`<text x="${CX}" y="575" text-anchor="middle" font-family="${SANS}" font-size="15"` +
@@ -610,7 +594,7 @@ module.exports = { ops };
 		rmSync(svgPath, { force: true });
 	}
 
-	console.log(`build-og: wrote ${out} (${W}x${H}) for ${launchLabel}`);
+	console.log(`build-og: wrote ${out} (${W}x${H}))`);
 }
 
 for (const variant of VARIANTS) buildCard(variant);

@@ -34,7 +34,7 @@
 
 	/* ── Themes ──
 	   Two of them, and they are not the same page in two palettes. Dark is the
-	   teaser: black, a wireframe planet, a launch date flying in on an arc.
+	   teaser: black, a wireframe planet, a wireframe letter A flying in on an arc.
 	   Light is the other side of the same joke — a pastel sky, a unicorn where
 	   the date was, and a candy mountain where the towers were.
 
