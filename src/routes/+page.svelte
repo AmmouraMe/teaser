@@ -2300,19 +2300,22 @@
 				}}
 				novalidate
 			>
+				<h2 class="join-title" id="join-title">Join the waitlist</h2>
+				<p class="join-sub">Get an email the day Ammoura opens.</p>
 				<div class="join-row">
 					<input
+						id="join-email"
 						name="email"
 						type="email"
 						bind:value={email}
 						placeholder="you@example.com"
-						aria-label="Email address"
+						aria-labelledby="join-title"
 						autocomplete="email"
 						required
 					/>
 					<input type="hidden" name="_clientData" value={clientData} />
 					<button type="submit" disabled={!formValid || submitting}>
-						{submitting ? '...' : 'Join'}
+						{submitting ? 'Joining…' : 'Join the waitlist'}
 					</button>
 				</div>
 				{#if formError}
@@ -2330,7 +2333,7 @@
 						<a class="provider provider-{p.id}" href="/auth/join/{p.id}"
 							aria-label="Join with {p.label}" title="Join with {p.label}">
 							{@html PROVIDER_ICON[p.id]}
-							<span class="provider-label">{p.label}</span>
+							<span class="provider-label">Join with {p.label}</span>
 						</a>
 					{/each}
 				</div>
@@ -3156,11 +3159,26 @@
 		.drop, .drop-shot img, .drop-arrow { transition: none; }
 	}
 
-	/* ── Single-row join form ── */
+	/* ── Join form ── */
 	.join {
 		width: 100%;
-		max-width: 30rem;
+		max-width: 34rem;
 		margin: 0 auto;
+	}
+	/* Says what the form is. The row below was a bare field and a button reading
+	   "Join", which asked the visitor to guess what they were joining. */
+	.join .join-title {
+		margin: 0 0 0.25rem;
+		line-height: 1.2;
+		font-size: 1.35rem;
+		font-weight: 400;
+		letter-spacing: 0.08em;
+	}
+	.join .join-sub {
+		margin: 0 0 1rem;
+		line-height: 1.3;
+		font-size: 0.95rem;
+		opacity: 0.75;
 	}
 	.join-row {
 		display: flex;
@@ -3219,13 +3237,29 @@
 		   button against a pill-shaped input reads as two controls that arrived
 		   from different pages. */
 		border-radius: 999px;
+		/* The one thing to press: filled, where every other button on the page is
+		   an outline. Ink on panel works on both themes. */
+		background: var(--ink);
+		border-color: var(--ink);
+		color: rgb(var(--panel-rgb));
+		font-weight: 600;
+		letter-spacing: 0.12em;
+		white-space: nowrap;
+	}
+	.join-row button:hover:not(:disabled) {
+		opacity: 0.85;
+	}
+	@media (max-width: 520px) {
+		.join-row {
+			flex-direction: column;
+		}
 	}
 	/* Disabled until the address parses, which means this is how the button looks
 	   when the page first loads — and at 0.25 the only call to action on the site
 	   arrived looking like an empty rectangle, or like something broken. It has to
 	   read as "not yet", which needs it to be legible first. */
 	.join-row button:disabled {
-		opacity: 0.55;
+		opacity: 0.6;
 		cursor: default;
 		pointer-events: none;
 	}
@@ -3269,8 +3303,8 @@
 		flex: 0 0 auto;
 	}
 
-	/* On narrow screens the labels crowd out; leave the marks alone. */
-	@media (max-width: 560px) {
+	/* On very narrow screens the labels crowd out; leave the marks alone. */
+	@media (max-width: 380px) {
 		.provider-label {
 			position: absolute;
 			width: 1px;
