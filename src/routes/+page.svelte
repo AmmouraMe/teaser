@@ -10,7 +10,6 @@
 		SITE_DESCRIPTION,
 		PRODUCT_DESCRIPTION,
 		CAPABILITIES,
-		LAUNCH_ISO,
 		DISCORD_URL,
 		SOCIAL_LINKS,
 		OG_IMAGE_PATH,
@@ -21,40 +20,10 @@
 		unicornRequested
 	} from '$lib/seo.js';
 
-	// The countdown target is LAUNCH_ISO itself. It used to be a second copy of
-	// the same instant written out here, which is one edit away from a page that
-	// counts down to one date and tells crawlers another.
-	const TARGET = new Date(LAUNCH_ISO).getTime();
-	let days = $state('--');
-	let hours = $state('--');
-	let minutes = $state('--');
-	let seconds = $state('--');
-
-	function updateCountdown() {
-		const diff = TARGET - Date.now();
-		if (diff <= 0) {
-			days = '00'; hours = '00'; minutes = '00'; seconds = '00';
-			return false;
-		}
-		days = String(Math.floor(diff / 86400000)).padStart(2, '0');
-		hours = String(Math.floor((diff % 86400000) / 3600000)).padStart(2, '0');
-		minutes = String(Math.floor((diff % 3600000) / 60000)).padStart(2, '0');
-		seconds = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0');
-		return true;
-	}
-
-	onMount(() => {
-		updateCountdown();
-		const interval = setInterval(() => {
-			if (!updateCountdown()) clearInterval(interval);
-		}, 1000);
-		return () => clearInterval(interval);
-	});
-
 	// ── 3D Wireframe Flight ──
 	let flightCanvas = $state();
 	let taglineEl = $state();
-	const FLIGHT_START = new Date('2026-03-22T00:00:00-05:00').getTime();
+	let heroEl = $state();
 
 	// While the track is playing, the arc IS the track: the number takes off on
 	// the first note and lands on the last. Read straight off the audio element
@@ -64,14 +33,15 @@
 
 	let trackStarted = $state(false);
 
-	/** Where the arc puts the creature when nothing is playing: the real
-	    countdown, March 22 → launch. This is its post. */
-	function countdownProgress() {
-		return Math.max(0, Math.min(1, (Date.now() - FLIGHT_START) / (TARGET - FLIGHT_START)));
+	/** Where the arc puts the creature when nothing is playing: halfway along.
+	    There is no date to count to, so this is its post. */
+	const REST_PROGRESS = 0.5;
+	function restProgress() {
+		return REST_PROGRESS;
 	}
 
-	// How much of the arc the track owns: 1 while it plays, 0 when the countdown
-	// has it back. Eased rather than switched, because the two positions are a
+	// How much of the arc the track owns: 1 while it plays, 0 when the rest
+	// position has it back. Eased rather than switched, because the two positions are a
 	// long way apart — pressing play used to teleport the glyph to the start of
 	// the arc, and stopping used to teleport it back. Now it flies.
 	let flightMix = 0;
@@ -82,14 +52,14 @@
 	const FLIGHT_RETURN = 0.022;
 
 	function getFlightProgress() {
-		const countdown = countdownProgress();
+		const rest = restProgress();
 		const d = audioEl?.duration;
 		if (trackStarted && Number.isFinite(d) && d > 0) {
 			flightHeld = Math.max(0, Math.min(1, audioEl.currentTime / d));
 		}
 		const want = playing ? 1 : 0;
 		flightMix += (want - flightMix) * (want > flightMix ? FLIGHT_TAKE : FLIGHT_RETURN);
-		return countdown + (flightHeld - countdown) * flightMix;
+		return rest + (flightHeld - rest) * flightMix;
 	}
 
 	onMount(() => {
@@ -106,13 +76,11 @@
 		const ctx = flightCanvas.getContext('2d');
 		if (!ctx) return;
 
-		// 3D wireframe "21" — launch day, swept as tubes along digit centerlines.
+		// 3D wireframe "A" — Ammoura, swept as tubes along letter centerlines.
 		//
-		// It used to be a hand-built "9": a torus for the bowl and a cylinder for
-		// the tail. Two digits do not decompose that neatly, so the shape is now
-		// described the way a sign-writer would describe it — a centerline path
-		// per stroke — and one sweep turns each path into the same round tube.
-		// Moving launch day again means editing DIGITS, not the geometry.
+		// The shape is described the way a sign-writer would describe it — a
+		// centerline path per stroke — and one sweep turns each path into the same
+		// round tube. Changing the glyph means editing DIGITS, not the geometry.
 		const TWO_PI = Math.PI * 2;
 		const V3 = [];
 		const E3 = [];
@@ -122,9 +90,8 @@
 		const arcSegs = 5;      // segments per quarter-turn of a curved stroke
 		const MAX_STEP = 0.15;  // longest gap between rings, so straights get rungs too
 
-		// Two digits are wider than one, so the pair is scaled to keep roughly the
-		// ink area the old single digit had. Uniform, so the tube thins with it.
-		const GLYPH_SCALE = 0.78;
+		// Uniform scale, so the tube thins with it.
+		const GLYPH_SCALE = 0.95;
 
 		// Digit space: z is across, y is up, baseline at -0.65 and cap at 0.85.
 		// The model is flat in x — the view yaw turns z into screen-width — so a
@@ -157,25 +124,15 @@
 
 		const D = Math.PI / 180;
 
-		// "2": a bowl over the top, a diagonal down to the baseline, a flat foot.
-		// One continuous stroke — a 2 is drawn without lifting the pen. The bowl's
-		// own exit point at -40 degrees is where the diagonal starts.
-		const twoBowl = arcPts(0, 0.47, 0.38, 195 * D, -40 * D);
-		const two = [[...twoBowl, [-0.38, BASE_Y], [0.38, BASE_Y]]];
-
-		// "1": flag, stem, and a foot. The foot is a separate stroke — it crosses
-		// the stem rather than continuing it, so sweeping them as one path would
-		// put a kink at the join.
-		const one = [
-			[[-0.24, 0.56], [0, CAP_Y], [0, BASE_Y]],
-			[[-0.25, BASE_Y], [0.25, BASE_Y]],
+		// "A": two legs meeting at the apex, and a crossbar. The legs are one
+		// continuous stroke; the bar crosses them, so it is its own stroke.
+		const letterA = [
+			[[-0.4, BASE_Y], [0, CAP_Y], [0.4, BASE_Y]],
+			[[-0.21, -0.18], [0.21, -0.18]],
 		];
 
 		// Laid out left to right by box width, then centred on z = 0.
-		const DIGITS = [
-			{ strokes: two, halfW: 0.38 },
-			{ strokes: one, halfW: 0.25 },
-		];
+		const DIGITS = [{ strokes: letterA, halfW: 0.4 }];
 		const DIGIT_GAP = 0.12;
 
 		/**
@@ -237,12 +194,12 @@
 			for (const v of V3) { v[0] *= GLYPH_SCALE; v[1] *= GLYPH_SCALE; v[2] *= GLYPH_SCALE; }
 		}
 
-		// The unicorn — what flies the arc in the light theme, where the launch
-		// date flies it in the dark one.
+		// The unicorn — what flies the arc in the light theme, where the letter
+		// A flies it in the dark one.
 		//
 		// It is described exactly the way the digits are: centreline strokes in
 		// the same zy plane, through the same tube sweep. That is the whole reason
-		// the "21" was rebuilt as paths rather than hand-assembled solids — a
+		// the glyph was built as paths rather than hand-assembled solids — a
 		// sign-writer's description of a shape does not care whether the shape is
 		// a numeral. Facing +z, which the view yaw turns into screen-right, so the
 		// unicorn faces along its own direction of travel down the arc.
@@ -559,7 +516,7 @@
 		// white line on it is an invisible line; the pink edge is what holds the
 		// shape, and the white is what makes the shape read as white.
 		//
-		// Light theme only: the dark theme flies the "21" and never asks for these.
+		// Light theme only: the dark theme flies the "A" and never asks for these.
 		const UNICORN_PAINT = {
 			tail:    [['rgba(226,74,150,0.40)', 1.5], ['rgba(255,152,201,0.95)', 0.68]],
 			mane:    [['rgba(226,74,150,0.44)', 1.5], ['rgba(255,158,205,0.98)', 0.68]],
@@ -625,7 +582,7 @@
 		// the near side at the bright end, so the body has real colour range
 		// across its own width instead of one flat tint fading out.
 
-		// One revolution, in milliseconds. Slow on purpose: the countdown is what
+		// One revolution, in milliseconds. Slow on purpose: the globe is what
 		// the eye is meant to land on, and a fast globe steals it.
 		const GLOBE_SPIN_MS = 90000;
 
@@ -1022,7 +979,7 @@
 
 			// Arc endpoint = the bottom-right corner of the tower pair, where the
 			// two towers stand on the planet. It used to be a third of the way
-			// down the right tower, which left the 21 landing in mid-air against
+			// down the right tower, which left the glyph landing in mid-air against
 			// the side of the "11"; the foot of the pair is where a flight path
 			// actually terminates.
 			const endX = baseX + towerGap / 2 + towerW; // right edge of right tower
@@ -1070,16 +1027,40 @@
 		/** The theme's ink at an alpha — every white the draw loop used to hardcode. */
 		const inkA = (a) => `rgba(${pal().ink.join(',')},${Math.min(1, a * pal().lineBoost)})`;
 
+		// How far the page runs on below the hero: the in-flow footer, when it is
+		// in the flow. Zero where the footer is pinned over the hero.
+		let rigExtra = 0;
+		function updateRigExtra() {
+			let extra = 0;
+			const foot = document.querySelector('.site-footer');
+			if (heroEl && foot && getComputedStyle(foot).position === 'static') {
+				const heroBottom = heroEl.getBoundingClientRect().bottom;
+				extra = Math.max(0, Math.round(foot.getBoundingClientRect().bottom - heroBottom) + 24);
+			}
+			if (extra !== rigExtra) {
+				rigExtra = extra;
+				flightCanvas.style.setProperty('--rig-extra', extra + 'px');
+			}
+		}
+
 		let frame;
 		function draw() {
 			const dpr = devicePixelRatio || 1;
+			// On a short phone window the footer is in the flow, below the hero, and
+			// the canvas used to stop where the hero stops: the side beams, thrown
+			// from just under that edge, were sawn off in a hard line above the footer.
+			// The canvas now runs on to the bottom of the page, and the lights stand
+			// there. Everything that lays out the hero (the planet, the arc, the
+			// glyph) keeps using the hero's own height, `h`; `H` is the whole canvas.
+			updateRigExtra();
 			const w = flightCanvas.clientWidth;
-			const h = flightCanvas.clientHeight;
-			if (w === 0 || h === 0) { frame = requestAnimationFrame(draw); return; }
+			const H = flightCanvas.clientHeight;
+			const h = Math.max(1, H - rigExtra);
+			if (w === 0 || H === 0) { frame = requestAnimationFrame(draw); return; }
 			flightCanvas.width = w * dpr;
-			flightCanvas.height = h * dpr;
+			flightCanvas.height = H * dpr;
 			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-			ctx.clearRect(0, 0, w, h);
+			ctx.clearRect(0, 0, w, H);
 
 			const { P0, P1, P2, towerBaseX, towerBaseY } = getArcPoints(w, h);
 			const N = 120;
@@ -1124,8 +1105,8 @@
 				const { towerH } = getTowerDims(w);
 				for (const rig of RIGS) {
 					const ox = rig.at === 'towers' ? towerBaseX : rig.at === 'left' ? w * 0.06 : w * 0.94;
-					const oy = rig.at === 'towers' ? towerBaseY - towerH : h * 1.04;
-					drawRig(w, h, ox, oy, rig.beams, rig.wash);
+					const oy = rig.at === 'towers' ? towerBaseY - towerH : H + h * 0.04;
+					drawRig(w, H, ox, oy, rig.beams, rig.wash);
 				}
 			}
 
@@ -1429,7 +1410,7 @@
 				ctx.save();
 				ctx.globalCompositeOperation = P.blend;
 				ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${(flash * FLASH_PEAK * eqMix).toFixed(3)})`;
-				ctx.fillRect(0, 0, w, h);
+				ctx.fillRect(0, 0, w, H);
 				ctx.restore();
 			}
 
@@ -1449,7 +1430,7 @@
 				ctx.strokeRect(tx2, towerBaseY - towerH, towerW, towerH);
 			}
 
-			// 3D "21" orientation: aligns with path tangent
+			// 3D glyph orientation: aligns with path tangent
 			const tan = bzd(t, P0, P1, P2);
 			const tangentAngle = Math.atan2(tan[1], tan[0]);
 			const bob = Math.sin(Date.now() * 0.0015) * 0.04;
@@ -1595,8 +1576,8 @@
 	// alone told a search result nothing, and the slogan already owns the page.
 	const siteTitle = 'Ammoura — Website and Online Store Builder';
 
-	// The launch is a real dated event and the page counts down to it, so it is
-	// worth describing to a crawler rather than leaving as decoration.
+	// Describe the product and its maker to a crawler rather than leaving them
+	// as decoration.
 	const launchSchema = [
 		{
 			'@type': 'Organization',
@@ -1620,8 +1601,7 @@
 			url: SITE_URL + '/',
 			image: SITE_URL + OG_IMAGE_PATH,
 			featureList: CAPABILITIES,
-			publisher: { '@id': SITE_URL + '/#organization' },
-			datePublished: LAUNCH_ISO
+			publisher: { '@id': SITE_URL + '/#organization' }
 		}
 	];
 
@@ -1632,7 +1612,7 @@
 	// BIRTH is track 1 of Ammoura.me, and its album route is "/" — this page.
 	// ── Theme ──
 	// Dark is the teaser. Light is the other side of the joke: a pastel sky, a
-	// unicorn flying the arc the launch date flew, and a candy mountain standing
+	// unicorn flying the arc the letter A flies, and a candy mountain standing
 	// where the towers stood.
 	//
 	// It does NOT follow prefers-color-scheme. Swapping a launch teaser's hero
@@ -1812,7 +1792,7 @@
 
 	// ── The rig ──
 	// Concert lighting, hung off the towers and pointed at everything. A single
-	// smoothed loudness was enough to make the 21 bob; it is nowhere near enough
+	// smoothed loudness was enough to make the glyph bob; it is nowhere near enough
 	// to run a light show, because a show is made of *events* — a kick lands, the
 	// colour changes, the beams snap somewhere new. So the rig runs its own onset
 	// detection, per band, and the fixtures are driven by hits rather than by a
@@ -2025,7 +2005,7 @@
 		if (audioCtx?.state === 'suspended') audioCtx.resume();
 	}
 
-	// Paused mid-track. The arc goes back to the countdown either way — stopping
+	// Paused mid-track. The arc goes back to its rest position either way — stopping
 	// the music puts the creature back on its post — and getFlightProgress eases
 	// the handover, so this only has to say the track is no longer playing.
 	function onPause() {
@@ -2288,7 +2268,7 @@
 
 <main>
 	{#if !submitted}
-		<section class="hero">
+		<section class="hero" bind:this={heroEl}>
 			<canvas class="flight-canvas" bind:this={flightCanvas}></canvas>
 			<p class="tagline" bind:this={taglineEl}>Build your empire</p>
 			<!-- Two spans, not a <br>: each sentence is its own line, and either one
@@ -2305,34 +2285,18 @@
 			</h1>
 			<p class="hint">A website, a storefront, and everything behind them.</p>
 
-			<div class="countdown">
-				<div class="countdown-segment"><span class="countdown-value">{days}</span><span class="countdown-label">Days</span></div>
-				<span class="countdown-sep">:</span>
-				<div class="countdown-segment"><span class="countdown-value">{hours}</span><span class="countdown-label">Hrs</span></div>
-				<span class="countdown-sep">:</span>
-				<div class="countdown-segment"><span class="countdown-value">{minutes}</span><span class="countdown-label">Min</span></div>
-				<span class="countdown-sep">:</span>
-				<div class="countdown-segment"><span class="countdown-value">{seconds}</span><span class="countdown-label">Sec</span></div>
-			</div>
+			<p class="coming-soon">Coming soon</p>
 
-			<!-- Track 1 of Ammoura.me. Playing it re-runs the flight on a loop. -->
-			<button class="play-btn" onclick={togglePlay} aria-pressed={playing}
-				aria-label={playing ? 'Pause BIRTH' : 'Play BIRTH by davis9001'}>
-				{#if playing}
-					<svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
-				{:else}
-					<svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14z"/></svg>
-				{/if}
-				<span class="play-label">{playing ? 'Playing' : 'Play'}</span>
-				<span class="play-track">BIRTH &middot; davis9001</span>
-			</button>
-			<audio bind:this={audioEl} src="/audio/01-birth.mp3" preload="metadata"
-				onplay={onPlay} onpause={onPause} onended={onEnded}></audio>
-
+			<div class="signup">
 			<form
 				class="join"
 				method="POST"
-				use:enhance={() => {
+				use:enhance={({ cancel }) => {
+					if (!formValid) {
+						formError = 'Enter a real email address and we will let you know.';
+						cancel();
+						return;
+					}
 					submitting = true;
 					formError = '';
 					return async ({ update }) => {
@@ -2342,19 +2306,24 @@
 				}}
 				novalidate
 			>
+				<h2 class="join-title" id="join-title">Get notified</h2>
+				<p class="join-sub">We'll email you the day Ammoura opens.</p>
+				<p class="join-perk"><span aria-hidden="true">★</span> Early sign-ups get special perks</p>
 				<div class="join-row">
 					<input
+						id="join-email"
 						name="email"
 						type="email"
 						bind:value={email}
 						placeholder="you@example.com"
-						aria-label="Email address"
+						aria-labelledby="join-title"
 						autocomplete="email"
 						required
 					/>
 					<input type="hidden" name="_clientData" value={clientData} />
-					<button type="submit" disabled={!formValid || submitting}>
-						{submitting ? '...' : 'Join'}
+					<button type="submit" class="join-btn" disabled={submitting}>
+						<span>{submitting ? 'Signing up…' : 'Get notified'}</span>
+						<svg class="join-arrow" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
 					</button>
 				</div>
 				{#if formError}
@@ -2372,11 +2341,37 @@
 						<a class="provider provider-{p.id}" href="/auth/join/{p.id}"
 							aria-label="Join with {p.label}" title="Join with {p.label}">
 							{@html PROVIDER_ICON[p.id]}
-							<span class="provider-label">{p.label}</span>
+							<span class="provider-label">Join with {p.label}</span>
 						</a>
 					{/each}
 				</div>
 			{/if}
+			</div>
+
+			<!-- Track 1 of Ammoura.me. Playing it re-runs the flight on a loop. -->
+			<button class="play-btn" onclick={togglePlay} aria-pressed={playing}
+				aria-label={playing ? 'Pause BIRTH' : 'Play BIRTH by davis9001'}>
+				{#if playing}
+					<svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+				{:else}
+					<svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14z"/></svg>
+				{/if}
+				<span class="play-label">{playing ? 'Playing' : 'Play'}</span>
+				<span class="play-track">BIRTH &middot; davis9001</span>
+			</button>
+			<audio bind:this={audioEl} src="/audio/01-birth.mp3" preload="metadata"
+				onplay={onPlay} onpause={onPause} onended={onEnded}></audio>
+
+			<!-- The first thing you can own: the hoodie, sold on David's own shop
+			     (davis9001.com) until the Ammoura storefront exists. 2026-11-13. -->
+			<a class="drop" href="https://davis9001.com/shop/ammoura" target="_blank" rel="noopener">
+				<span class="drop-shot"><img src="/merch/ammoura-hoodie.webp" alt="The Ammoura hoodie, black" width="88" height="88" loading="eager" decoding="async" /></span>
+				<span class="drop-text">
+					<span class="drop-kicker"><span class="drop-dot" aria-hidden="true"></span>Drop 01 &middot; Out now</span>
+					<span class="drop-name">The Ammoura Hoodie</span>
+					<span class="drop-cta">Get it at davis9001.com <span class="drop-arrow" aria-hidden="true">&rarr;</span></span>
+				</span>
+			</a>
 
 			{@render socials()}
 		</section>
@@ -2559,76 +2554,23 @@
 		}
 	}
 
-	/* ── Countdown ── */
-	.countdown {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		margin-bottom: 2.5rem;
-	}
-
-	.countdown-segment {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		min-width: 3.2rem;
-	}
-
-	.countdown-value {
-		font-size: 1.6rem;
-		letter-spacing: 0.1em;
-		font-variant-numeric: tabular-nums;
-		font-weight: 400;
-	}
-
-	.countdown-label {
-		font-size: 0.6rem;
-		letter-spacing: 0.18em;
-		text-transform: uppercase;
-		opacity: 0.4;
-		margin-top: 0.15rem;
-	}
-
-	.countdown-sep {
+	/* ── Coming soon ── */
+	.coming-soon {
+		margin: 0 0 2.5rem;
 		font-size: 1.3rem;
-		opacity: 0.3;
-		align-self: flex-start;
-		margin-top: 0.15rem;
+		font-weight: 400;
+		letter-spacing: 0.3em;
+		text-transform: uppercase;
 	}
 
 	@media (min-width: 480px) {
-		.countdown {
-			gap: 0.75rem;
-		}
-		.countdown-segment {
-			min-width: 4rem;
-		}
-		.countdown-value {
-			font-size: 2.2rem;
-		}
-		.countdown-label {
-			font-size: 0.65rem;
-		}
-		.countdown-sep {
+		.coming-soon {
 			font-size: 1.6rem;
 		}
 	}
 
 	@media (min-width: 768px) {
-		.countdown {
-			gap: 1rem;
-		}
-		.countdown-segment {
-			min-width: 5rem;
-		}
-		.countdown-value {
-			font-size: 2.8rem;
-		}
-		.countdown-label {
-			font-size: 0.7rem;
-			letter-spacing: 0.2em;
-		}
-		.countdown-sep {
+		.coming-soon {
 			font-size: 2rem;
 		}
 	}
@@ -2666,7 +2608,9 @@
 		top: 0;
 		left: 0;
 		width: 100%;
-		height: 100%;
+		/* Runs on past the hero to the bottom of the page when the footer is in
+		   the flow; --rig-extra is set by the draw loop. */
+		height: calc(100% + var(--rig-extra, 0px));
 		pointer-events: none;
 	}
 
@@ -2676,7 +2620,7 @@
 	.tagline,
 	h1,
 	.hint,
-	.countdown {
+	.coming-soon {
 		text-shadow:
 			0 0 6px rgb(var(--halo-rgb) / 0.92),
 			0 1px 3px rgb(var(--halo-rgb) / 0.8);
@@ -3149,11 +3093,180 @@
 		opacity: 0.75;
 	}
 
-	/* ── Single-row join form ── */
-	.join {
+	/* ── Merch drop ── */
+	.drop {
+		position: relative;
+		display: flex;
+		align-items: center;
+		gap: 1rem;
 		width: 100%;
 		max-width: 30rem;
+		margin: 0 auto 2rem;
+		padding: 0.75rem 1.25rem 0.75rem 0.75rem;
+		border: 1px solid rgb(var(--accent-rgb) / 0.45);
+		border-radius: 18px;
+		background: rgb(var(--panel-rgb) / 0.72);
+		backdrop-filter: blur(10px);
+		color: var(--ink);
+		text-decoration: none;
+		text-align: left;
+		overflow: hidden;
+		box-shadow: 0 0 0 0 rgb(var(--accent-rgb) / 0);
+		transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+	}
+	.drop::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(110deg, transparent 30%, rgb(var(--accent-rgb) / 0.18) 50%, transparent 70%);
+		transform: translateX(-100%);
+		animation: drop-sheen 4.5s ease-in-out infinite;
+		pointer-events: none;
+	}
+	.drop:hover,
+	.drop:focus-visible {
+		transform: translateY(-2px);
+		border-color: rgb(var(--accent-rgb));
+		box-shadow: 0 10px 40px -10px rgb(var(--accent-rgb) / 0.55);
+	}
+	.drop-shot {
+		flex: none;
+		width: 88px;
+		height: 88px;
+		border-radius: 12px;
+		overflow: hidden;
+		background: #0b0b0d;
+	}
+	.drop-shot img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		transition: transform 0.4s ease;
+	}
+	.drop:hover .drop-shot img { transform: scale(1.08); }
+	.drop-text {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		min-width: 0;
+	}
+	.drop-kicker {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+		font-size: 0.68rem;
+		letter-spacing: 0.22em;
+		text-transform: uppercase;
+		color: rgb(var(--accent-rgb));
+	}
+	.drop-dot {
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		background: rgb(var(--accent-rgb));
+		animation: drop-pulse 1.6s ease-in-out infinite;
+	}
+	.drop-name {
+		font-size: 1.15rem;
+		font-weight: 700;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+	}
+	.drop-cta {
+		font-size: 0.8rem;
+		opacity: 0.7;
+		letter-spacing: 0.06em;
+	}
+	.drop-arrow {
+		display: inline-block;
+		transition: transform 0.25s ease;
+	}
+	.drop:hover .drop-arrow { transform: translateX(4px); }
+	@keyframes drop-sheen {
+		0%, 55% { transform: translateX(-100%); }
+		100% { transform: translateX(100%); }
+	}
+	@keyframes drop-pulse {
+		0%, 100% { box-shadow: 0 0 0 0 rgb(var(--accent-rgb) / 0.6); }
+		50% { box-shadow: 0 0 0 6px rgb(var(--accent-rgb) / 0); }
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.drop::before, .drop-dot { animation: none; }
+		.drop, .drop-shot img, .drop-arrow { transition: none; }
+	}
+
+	/* ── Join form ── */
+	.join {
+		width: 100%;
+		max-width: 34rem;
 		margin: 0 auto;
+		/* The global form gap spaces every child; here the margins do it. */
+		gap: 0;
+	}
+	/* Says what the form is. The row below was a bare field and a button reading
+	   "Join", which asked the visitor to guess what they were joining. */
+	.join .join-title {
+		margin: 0 0 0.35rem;
+		line-height: 1.15;
+		font-size: 1.9rem;
+		font-weight: 400;
+		letter-spacing: 0.05em;
+	}
+	/* One card for the whole ask, so the field, the button, the perk and the
+	   Discord option read as a single thing to do, apart from the play button and
+	   the hoodie around it. */
+	.signup {
+		position: relative;
+		width: 100%;
+		max-width: 38rem;
+		margin: 0 auto 1.75rem;
+		padding: 1.9rem 1.75rem 1.6rem;
+		border: 1px solid rgb(var(--accent-rgb) / 0.4);
+		border-radius: 1.5rem;
+		/* A wash of the theme's accent at the top, over the panel, so the card
+		   has a light source instead of being a grey box. */
+		background:
+			radial-gradient(120% 90% at 50% -10%, rgb(var(--accent-rgb) / 0.2), transparent 62%),
+			rgb(var(--panel-rgb) / 0.72);
+		box-shadow:
+			0 0 0 1px rgb(var(--accent-rgb) / 0.08),
+			0 24px 60px -24px rgb(var(--accent-rgb) / 0.45);
+		-webkit-backdrop-filter: blur(8px);
+		backdrop-filter: blur(8px);
+	}
+	.signup .or {
+		margin: 1.25rem 0 0.9rem;
+		display: flex;
+		align-items: center;
+		gap: 0.9rem;
+	}
+	.signup .or::before,
+	.signup .or::after {
+		content: '';
+		flex: 1;
+		height: 1px;
+		background: rgb(var(--ink-rgb) / 0.2);
+	}
+	.join .join-perk {
+		align-self: center;
+		margin: 0 0 1.1rem;
+		padding: 0.3rem 0.8rem;
+		border: 1px solid rgb(var(--accent-rgb) / 0.6);
+		border-radius: 999px;
+		font-size: 0.78rem;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--ink);
+		background: rgb(var(--accent-rgb) / 0.14);
+	}
+	.join .join-perk span {
+		color: rgb(var(--accent-rgb));
+	}
+	.join .join-sub {
+		margin: 0 0 0.9rem;
+		font-size: 1.02rem;
+		opacity: 0.85;
+		line-height: 1.3;
 	}
 	.join-row {
 		display: flex;
@@ -3181,10 +3294,13 @@
 		color: var(--ink);
 		font-family: inherit;
 		font-size: 1rem;
-		padding: 0.7rem 1.1rem;
+		padding: 0.7rem 1.3rem;
+		min-height: 3.2rem;
+		text-align: left;
 		transition:
 			border-color 0.2s ease,
-			background 0.2s ease;
+			background 0.2s ease,
+			box-shadow 0.2s ease;
 	}
 	/* The placeholder is the field's only visible label — there is no <label>,
 	   just an aria-label — so it has to be readable, not decorative. At the old
@@ -3192,35 +3308,101 @@
 	   even the large-text floor. 0.65 measures 4.65:1 and still reads as a hint.
 	   Quiet comes from the panel now, not from making the words disappear. */
 	.join-row input::placeholder {
-		color: rgb(var(--ink-rgb) / 0.65);
+		/* Quieter than it was, at 0.65 it competed with the heading. The heading
+		   ("Get notified") is the field's label, so the placeholder is only an
+		   example, and it clears the moment the field is clicked into. */
+		color: rgb(var(--ink-rgb) / 0.42);
+		opacity: 1;
+		transition: opacity 0.15s ease;
+	}
+	.join-row input:focus::placeholder {
+		opacity: 0;
 	}
 	.join-row input:hover {
 		border-color: rgb(var(--ink-rgb) / 0.7);
 	}
 	.join-row input:focus {
 		outline: none;
-		border-color: var(--ink);
+		border-color: rgb(var(--accent-rgb));
+		box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / 0.28);
 		background: rgb(var(--panel-rgb) / 0.8);
 	}
-	.join-row button {
+	/* The one thing to press, so it is the one filled, coloured thing on the
+	   page: the theme's accent, an arrow that leans forward on hover, a lift and
+	   a glow, a pointer, a press, and a focus ring. It is never greyed out. A
+	   dead-looking button was the complaint; a bad address is answered when the
+	   button is pressed, in words, instead. */
+	.join-row .join-btn {
 		flex: 0 0 auto;
 		margin-top: 0;
 		width: auto;
 		align-self: stretch;
-		padding: 0.7rem 1.6rem;
-		/* Matches the field beside it and the PLAY button above it. A square
-		   button against a pill-shaped input reads as two controls that arrived
-		   from different pages. */
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.6rem;
+		padding: 0.7rem 1.7rem;
 		border-radius: 999px;
+		border: 1px solid rgb(var(--accent-rgb));
+		background: rgb(var(--accent-rgb));
+		color: #06150a;
+		font-weight: 700;
+		letter-spacing: 0.12em;
+		white-space: nowrap;
+		cursor: pointer;
+		box-shadow: 0 8px 24px -10px rgb(var(--accent-rgb) / 0.8);
+		transition:
+			transform 0.18s ease,
+			box-shadow 0.18s ease,
+			filter 0.18s ease;
 	}
-	/* Disabled until the address parses, which means this is how the button looks
-	   when the page first loads — and at 0.25 the only call to action on the site
-	   arrived looking like an empty rectangle, or like something broken. It has to
-	   read as "not yet", which needs it to be legible first. */
-	.join-row button:disabled {
-		opacity: 0.55;
-		cursor: default;
-		pointer-events: none;
+	:global(html[data-theme='light']) .join-row .join-btn {
+		color: #2a0f2e;
+	}
+	.join-arrow {
+		transition: transform 0.2s ease;
+	}
+	.join-row .join-btn:hover:not(:disabled) {
+		transform: translateY(-2px);
+		filter: brightness(1.08);
+		box-shadow: 0 14px 30px -10px rgb(var(--accent-rgb) / 0.95);
+	}
+	.join-row .join-btn:hover:not(:disabled) .join-arrow {
+		transform: translateX(4px);
+	}
+	.join-row .join-btn:active:not(:disabled) {
+		transform: translateY(0) scale(0.97);
+		box-shadow: 0 4px 12px -6px rgb(var(--accent-rgb) / 0.8);
+	}
+	.join-row .join-btn:focus-visible {
+		outline: 2px solid var(--ink);
+		outline-offset: 3px;
+	}
+	.join-row .join-btn:disabled {
+		cursor: progress;
+		opacity: 0.75;
+	}
+	@media (max-width: 520px) {
+		.join-row {
+			flex-direction: column;
+		}
+		.join-row .join-btn {
+			min-height: 3.2rem;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.join-row .join-btn,
+		.join-arrow {
+			transition: none;
+		}
+		.join-row .join-btn:hover:not(:disabled),
+		.join-row .join-btn:hover:not(:disabled) .join-arrow {
+			transform: none;
+		}
+	}
+	.join .error {
+		margin-top: 0.8rem;
+		text-align: center;
 	}
 
 	/* ── Provider row ── */
@@ -3253,17 +3435,25 @@
 		transition: border-color 0.2s, background 0.2s;
 		-webkit-tap-highlight-color: transparent;
 	}
+	.provider {
+		cursor: pointer;
+	}
 	.provider:hover,
 	.provider:focus-visible {
 		border-color: var(--ink);
 		background: rgb(var(--ink-rgb) / 0.07);
 	}
+	.provider-discord:hover,
+	.provider-discord:focus-visible {
+		border-color: #7983f5;
+		background: rgb(88 101 242 / 0.25);
+	}
 	.provider :global(svg) {
 		flex: 0 0 auto;
 	}
 
-	/* On narrow screens the labels crowd out; leave the marks alone. */
-	@media (max-width: 560px) {
+	/* On very narrow screens the labels crowd out; leave the marks alone. */
+	@media (max-width: 380px) {
 		.provider-label {
 			position: absolute;
 			width: 1px;
@@ -3311,7 +3501,7 @@
 		.tagline {
 			margin-bottom: 1.25rem;
 		}
-		.countdown {
+		.coming-soon {
 			margin-bottom: 1.75rem;
 		}
 	}
@@ -3324,7 +3514,7 @@
 		.hint {
 			margin-bottom: 1.5rem;
 		}
-		.countdown {
+		.coming-soon {
 			margin-bottom: 1.5rem;
 		}
 	}

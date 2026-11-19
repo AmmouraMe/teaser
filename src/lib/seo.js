@@ -10,18 +10,6 @@
 export const SITE_NAME = 'Ammoura';
 export const SITE_URL = 'https://ammoura.me';
 
-/**
- * Public launch: 21 November 2026, 19:00 MST — doors at State Farm Stadium in
- * Glendale, Arizona. The moment the page counts down to and the date a crawler
- * is told the software was published, so it is declared once here and imported
- * everywhere else.
- *
- * The offset is -07:00 and stays -07:00: Arizona does not observe daylight
- * time, so unlike the Eastern dates this sat on before, the wall clock and the
- * offset cannot drift apart whatever month the date moves to.
- */
-export const LAUNCH_ISO = '2026-11-21T19:00:00-07:00';
-
 export const DISCORD_URL = 'https://discord.gg/dPRvKFS9dq';
 
 /**
@@ -104,22 +92,7 @@ export const CAPABILITIES = [
 export const OG_IMAGE_PATH = '/og.png';
 export const OG_IMAGE_WIDTH = 1200;
 export const OG_IMAGE_HEIGHT = 630;
-/**
- * Launch day as words, in the launch's own timezone.
- *
- * Arizona rather than the reader's zone: the card and the alt text should name
- * the date the countdown actually ends on, which is fixed, not the date it is
- * where the reader happens to be sitting. Derived rather than written out so it
- * cannot drift from LAUNCH_ISO the way a second copy would.
- */
-export const LAUNCH_LABEL = new Intl.DateTimeFormat('en-GB', {
-	day: 'numeric',
-	month: 'long',
-	year: 'numeric',
-	timeZone: 'America/Phoenix'
-}).format(new Date(LAUNCH_ISO));
-
-export const OG_IMAGE_ALT = `Ammoura — Build Your Empire. Launching ${LAUNCH_LABEL}.`;
+export const OG_IMAGE_ALT = `Ammoura — Build Your Empire. Coming soon.`;
 export const OG_IMAGE_TYPE = 'image/png';
 
 /**
@@ -131,7 +104,7 @@ export const OG_IMAGE_TYPE = 'image/png';
  */
 export const OG_IMAGE_UNICORN_PATH = '/og-unicorn.png';
 export const OG_IMAGE_UNICORN_ALT =
-	`Ammoura — Build Your Empire. A unicorn over a candy mountain. Launching ${LAUNCH_LABEL}.`;
+	`Ammoura — Build Your Empire. A unicorn over a candy mountain. Coming soon.`;
 
 /**
  * The query parameter that overrides the stored theme.

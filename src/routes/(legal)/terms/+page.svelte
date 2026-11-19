@@ -28,7 +28,7 @@
 	particular features, at any particular price, or at all.
 </p>
 <p>
-	Any dates, countdowns or descriptions on this page reflect what we intend today. Plans change.
+	Any dates or descriptions on this page reflect what we intend today. Plans change.
 	Do not make commitments of your own in reliance on them.
 </p>
 
