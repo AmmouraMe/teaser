@@ -2262,31 +2262,7 @@
 
 			<p class="coming-soon">Coming soon</p>
 
-			<!-- Track 1 of Ammoura.me. Playing it re-runs the flight on a loop. -->
-			<button class="play-btn" onclick={togglePlay} aria-pressed={playing}
-				aria-label={playing ? 'Pause BIRTH' : 'Play BIRTH by davis9001'}>
-				{#if playing}
-					<svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
-				{:else}
-					<svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14z"/></svg>
-				{/if}
-				<span class="play-label">{playing ? 'Playing' : 'Play'}</span>
-				<span class="play-track">BIRTH &middot; davis9001</span>
-			</button>
-			<audio bind:this={audioEl} src="/audio/01-birth.mp3" preload="metadata"
-				onplay={onPlay} onpause={onPause} onended={onEnded}></audio>
-
-			<!-- The first thing you can own: the hoodie, sold on David's own shop
-			     (davis9001.com) until the Ammoura storefront exists. 2026-11-13. -->
-			<a class="drop" href="https://davis9001.com/shop/ammoura" target="_blank" rel="noopener">
-				<span class="drop-shot"><img src="/merch/ammoura-hoodie.webp" alt="The Ammoura hoodie, black" width="88" height="88" loading="eager" decoding="async" /></span>
-				<span class="drop-text">
-					<span class="drop-kicker"><span class="drop-dot" aria-hidden="true"></span>Drop 01 &middot; Out now</span>
-					<span class="drop-name">The Ammoura Hoodie</span>
-					<span class="drop-cta">Get it at davis9001.com <span class="drop-arrow" aria-hidden="true">&rarr;</span></span>
-				</span>
-			</a>
-
+			<div class="signup">
 			<form
 				class="join"
 				method="POST"
@@ -2301,7 +2277,8 @@
 				novalidate
 			>
 				<h2 class="join-title" id="join-title">Get notified</h2>
-				<p class="join-sub">We'll email you the day Ammoura opens. Early sign-ups get special perks.</p>
+				<p class="join-sub">We'll email you the day Ammoura opens.</p>
+				<p class="join-perk"><span aria-hidden="true">★</span> Early sign-ups get special perks</p>
 				<div class="join-row">
 					<input
 						id="join-email"
@@ -2338,6 +2315,32 @@
 					{/each}
 				</div>
 			{/if}
+			</div>
+
+			<!-- Track 1 of Ammoura.me. Playing it re-runs the flight on a loop. -->
+			<button class="play-btn" onclick={togglePlay} aria-pressed={playing}
+				aria-label={playing ? 'Pause BIRTH' : 'Play BIRTH by davis9001'}>
+				{#if playing}
+					<svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+				{:else}
+					<svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14z"/></svg>
+				{/if}
+				<span class="play-label">{playing ? 'Playing' : 'Play'}</span>
+				<span class="play-track">BIRTH &middot; davis9001</span>
+			</button>
+			<audio bind:this={audioEl} src="/audio/01-birth.mp3" preload="metadata"
+				onplay={onPlay} onpause={onPause} onended={onEnded}></audio>
+
+			<!-- The first thing you can own: the hoodie, sold on David's own shop
+			     (davis9001.com) until the Ammoura storefront exists. 2026-11-13. -->
+			<a class="drop" href="https://davis9001.com/shop/ammoura" target="_blank" rel="noopener">
+				<span class="drop-shot"><img src="/merch/ammoura-hoodie.webp" alt="The Ammoura hoodie, black" width="88" height="88" loading="eager" decoding="async" /></span>
+				<span class="drop-text">
+					<span class="drop-kicker"><span class="drop-dot" aria-hidden="true"></span>Drop 01 &middot; Out now</span>
+					<span class="drop-name">The Ammoura Hoodie</span>
+					<span class="drop-cta">Get it at davis9001.com <span class="drop-arrow" aria-hidden="true">&rarr;</span></span>
+				</span>
+			</a>
 
 			{@render socials()}
 		</section>
@@ -3164,6 +3167,8 @@
 		width: 100%;
 		max-width: 34rem;
 		margin: 0 auto;
+		/* The global form gap spaces every child; here the margins do it. */
+		gap: 0;
 	}
 	/* Says what the form is. The row below was a bare field and a button reading
 	   "Join", which asked the visitor to guess what they were joining. */
@@ -3174,8 +3179,36 @@
 		font-weight: 400;
 		letter-spacing: 0.08em;
 	}
+	/* One card for the whole ask, so the field, the button, the perk and the
+	   Discord option read as a single thing to do, apart from the play button and
+	   the hoodie around it. */
+	.signup {
+		width: 100%;
+		max-width: 36rem;
+		margin: 0 auto 1.75rem;
+		padding: 1.5rem 1.5rem 1.4rem;
+		border: 1px solid rgb(var(--ink-rgb) / 0.3);
+		border-radius: 1.25rem;
+		background: rgb(var(--panel-rgb) / 0.62);
+		-webkit-backdrop-filter: blur(6px);
+		backdrop-filter: blur(6px);
+	}
+	.signup .or {
+		margin: 1.1rem 0 0.8rem;
+	}
+	.join .join-perk {
+		align-self: center;
+		margin: 0 0 1.1rem;
+		padding: 0.3rem 0.8rem;
+		border: 1px solid rgb(var(--ink-rgb) / 0.35);
+		border-radius: 999px;
+		font-size: 0.8rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		background: rgb(var(--ink-rgb) / 0.08);
+	}
 	.join .join-sub {
-		margin: 0 0 1rem;
+		margin: 0 0 0.7rem;
 		line-height: 1.3;
 		font-size: 0.95rem;
 		opacity: 0.75;
