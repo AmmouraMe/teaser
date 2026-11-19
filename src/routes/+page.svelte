@@ -23,6 +23,7 @@
 	// ── 3D Wireframe Flight ──
 	let flightCanvas = $state();
 	let taglineEl = $state();
+	let heroEl = $state();
 
 	// While the track is playing, the arc IS the track: the number takes off on
 	// the first note and lands on the last. Read straight off the audio element
@@ -1026,16 +1027,40 @@
 		/** The theme's ink at an alpha — every white the draw loop used to hardcode. */
 		const inkA = (a) => `rgba(${pal().ink.join(',')},${Math.min(1, a * pal().lineBoost)})`;
 
+		// How far the page runs on below the hero: the in-flow footer, when it is
+		// in the flow. Zero where the footer is pinned over the hero.
+		let rigExtra = 0;
+		function updateRigExtra() {
+			let extra = 0;
+			const foot = document.querySelector('.site-footer');
+			if (heroEl && foot && getComputedStyle(foot).position === 'static') {
+				const heroBottom = heroEl.getBoundingClientRect().bottom;
+				extra = Math.max(0, Math.round(foot.getBoundingClientRect().bottom - heroBottom) + 24);
+			}
+			if (extra !== rigExtra) {
+				rigExtra = extra;
+				flightCanvas.style.setProperty('--rig-extra', extra + 'px');
+			}
+		}
+
 		let frame;
 		function draw() {
 			const dpr = devicePixelRatio || 1;
+			// On a short phone window the footer is in the flow, below the hero, and
+			// the canvas used to stop where the hero stops: the side beams, thrown
+			// from just under that edge, were sawn off in a hard line above the footer.
+			// The canvas now runs on to the bottom of the page, and the lights stand
+			// there. Everything that lays out the hero (the planet, the arc, the
+			// glyph) keeps using the hero's own height, `h`; `H` is the whole canvas.
+			updateRigExtra();
 			const w = flightCanvas.clientWidth;
-			const h = flightCanvas.clientHeight;
-			if (w === 0 || h === 0) { frame = requestAnimationFrame(draw); return; }
+			const H = flightCanvas.clientHeight;
+			const h = Math.max(1, H - rigExtra);
+			if (w === 0 || H === 0) { frame = requestAnimationFrame(draw); return; }
 			flightCanvas.width = w * dpr;
-			flightCanvas.height = h * dpr;
+			flightCanvas.height = H * dpr;
 			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-			ctx.clearRect(0, 0, w, h);
+			ctx.clearRect(0, 0, w, H);
 
 			const { P0, P1, P2, towerBaseX, towerBaseY } = getArcPoints(w, h);
 			const N = 120;
@@ -1080,8 +1105,8 @@
 				const { towerH } = getTowerDims(w);
 				for (const rig of RIGS) {
 					const ox = rig.at === 'towers' ? towerBaseX : rig.at === 'left' ? w * 0.06 : w * 0.94;
-					const oy = rig.at === 'towers' ? towerBaseY - towerH : h * 1.04;
-					drawRig(w, h, ox, oy, rig.beams, rig.wash);
+					const oy = rig.at === 'towers' ? towerBaseY - towerH : H + h * 0.04;
+					drawRig(w, H, ox, oy, rig.beams, rig.wash);
 				}
 			}
 
@@ -1385,7 +1410,7 @@
 				ctx.save();
 				ctx.globalCompositeOperation = P.blend;
 				ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${(flash * FLASH_PEAK * eqMix).toFixed(3)})`;
-				ctx.fillRect(0, 0, w, h);
+				ctx.fillRect(0, 0, w, H);
 				ctx.restore();
 			}
 
@@ -2243,7 +2268,7 @@
 
 <main>
 	{#if !submitted}
-		<section class="hero">
+		<section class="hero" bind:this={heroEl}>
 			<canvas class="flight-canvas" bind:this={flightCanvas}></canvas>
 			<p class="tagline" bind:this={taglineEl}>Build your empire</p>
 			<!-- Two spans, not a <br>: each sentence is its own line, and either one
@@ -2266,7 +2291,12 @@
 			<form
 				class="join"
 				method="POST"
-				use:enhance={() => {
+				use:enhance={({ cancel }) => {
+					if (!formValid) {
+						formError = 'Enter a real email address and we will let you know.';
+						cancel();
+						return;
+					}
 					submitting = true;
 					formError = '';
 					return async ({ update }) => {
@@ -2291,8 +2321,9 @@
 						required
 					/>
 					<input type="hidden" name="_clientData" value={clientData} />
-					<button type="submit" disabled={!formValid || submitting}>
-						{submitting ? 'Signing up…' : 'Get notified'}
+					<button type="submit" class="join-btn" disabled={submitting}>
+						<span>{submitting ? 'Signing up…' : 'Get notified'}</span>
+						<svg class="join-arrow" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
 					</button>
 				</div>
 				{#if formError}
@@ -2577,7 +2608,9 @@
 		top: 0;
 		left: 0;
 		width: 100%;
-		height: 100%;
+		/* Runs on past the hero to the bottom of the page when the footer is in
+		   the flow; --rig-extra is set by the draw loop. */
+		height: calc(100% + var(--rig-extra, 0px));
 		pointer-events: none;
 	}
 
@@ -3173,45 +3206,67 @@
 	/* Says what the form is. The row below was a bare field and a button reading
 	   "Join", which asked the visitor to guess what they were joining. */
 	.join .join-title {
-		margin: 0 0 0.25rem;
-		line-height: 1.2;
-		font-size: 1.35rem;
+		margin: 0 0 0.35rem;
+		line-height: 1.15;
+		font-size: 1.9rem;
 		font-weight: 400;
-		letter-spacing: 0.08em;
+		letter-spacing: 0.05em;
 	}
 	/* One card for the whole ask, so the field, the button, the perk and the
 	   Discord option read as a single thing to do, apart from the play button and
 	   the hoodie around it. */
 	.signup {
+		position: relative;
 		width: 100%;
-		max-width: 36rem;
+		max-width: 38rem;
 		margin: 0 auto 1.75rem;
-		padding: 1.5rem 1.5rem 1.4rem;
-		border: 1px solid rgb(var(--ink-rgb) / 0.3);
-		border-radius: 1.25rem;
-		background: rgb(var(--panel-rgb) / 0.62);
-		-webkit-backdrop-filter: blur(6px);
-		backdrop-filter: blur(6px);
+		padding: 1.9rem 1.75rem 1.6rem;
+		border: 1px solid rgb(var(--accent-rgb) / 0.4);
+		border-radius: 1.5rem;
+		/* A wash of the theme's accent at the top, over the panel, so the card
+		   has a light source instead of being a grey box. */
+		background:
+			radial-gradient(120% 90% at 50% -10%, rgb(var(--accent-rgb) / 0.2), transparent 62%),
+			rgb(var(--panel-rgb) / 0.72);
+		box-shadow:
+			0 0 0 1px rgb(var(--accent-rgb) / 0.08),
+			0 24px 60px -24px rgb(var(--accent-rgb) / 0.45);
+		-webkit-backdrop-filter: blur(8px);
+		backdrop-filter: blur(8px);
 	}
 	.signup .or {
-		margin: 1.1rem 0 0.8rem;
+		margin: 1.25rem 0 0.9rem;
+		display: flex;
+		align-items: center;
+		gap: 0.9rem;
+	}
+	.signup .or::before,
+	.signup .or::after {
+		content: '';
+		flex: 1;
+		height: 1px;
+		background: rgb(var(--ink-rgb) / 0.2);
 	}
 	.join .join-perk {
 		align-self: center;
 		margin: 0 0 1.1rem;
 		padding: 0.3rem 0.8rem;
-		border: 1px solid rgb(var(--ink-rgb) / 0.35);
+		border: 1px solid rgb(var(--accent-rgb) / 0.6);
 		border-radius: 999px;
-		font-size: 0.8rem;
-		letter-spacing: 0.08em;
+		font-size: 0.78rem;
+		letter-spacing: 0.1em;
 		text-transform: uppercase;
-		background: rgb(var(--ink-rgb) / 0.08);
+		color: var(--ink);
+		background: rgb(var(--accent-rgb) / 0.14);
+	}
+	.join .join-perk span {
+		color: rgb(var(--accent-rgb));
 	}
 	.join .join-sub {
-		margin: 0 0 0.7rem;
+		margin: 0 0 0.9rem;
+		font-size: 1.02rem;
+		opacity: 0.85;
 		line-height: 1.3;
-		font-size: 0.95rem;
-		opacity: 0.75;
 	}
 	.join-row {
 		display: flex;
@@ -3239,10 +3294,13 @@
 		color: var(--ink);
 		font-family: inherit;
 		font-size: 1rem;
-		padding: 0.7rem 1.1rem;
+		padding: 0.7rem 1.3rem;
+		min-height: 3.2rem;
+		text-align: left;
 		transition:
 			border-color 0.2s ease,
-			background 0.2s ease;
+			background 0.2s ease,
+			box-shadow 0.2s ease;
 	}
 	/* The placeholder is the field's only visible label — there is no <label>,
 	   just an aria-label — so it has to be readable, not decorative. At the old
@@ -3250,51 +3308,101 @@
 	   even the large-text floor. 0.65 measures 4.65:1 and still reads as a hint.
 	   Quiet comes from the panel now, not from making the words disappear. */
 	.join-row input::placeholder {
-		color: rgb(var(--ink-rgb) / 0.65);
+		/* Quieter than it was, at 0.65 it competed with the heading. The heading
+		   ("Get notified") is the field's label, so the placeholder is only an
+		   example, and it clears the moment the field is clicked into. */
+		color: rgb(var(--ink-rgb) / 0.42);
+		opacity: 1;
+		transition: opacity 0.15s ease;
+	}
+	.join-row input:focus::placeholder {
+		opacity: 0;
 	}
 	.join-row input:hover {
 		border-color: rgb(var(--ink-rgb) / 0.7);
 	}
 	.join-row input:focus {
 		outline: none;
-		border-color: var(--ink);
+		border-color: rgb(var(--accent-rgb));
+		box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / 0.28);
 		background: rgb(var(--panel-rgb) / 0.8);
 	}
-	.join-row button {
+	/* The one thing to press, so it is the one filled, coloured thing on the
+	   page: the theme's accent, an arrow that leans forward on hover, a lift and
+	   a glow, a pointer, a press, and a focus ring. It is never greyed out. A
+	   dead-looking button was the complaint; a bad address is answered when the
+	   button is pressed, in words, instead. */
+	.join-row .join-btn {
 		flex: 0 0 auto;
 		margin-top: 0;
 		width: auto;
 		align-self: stretch;
-		padding: 0.7rem 1.6rem;
-		/* Matches the field beside it and the PLAY button above it. A square
-		   button against a pill-shaped input reads as two controls that arrived
-		   from different pages. */
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.6rem;
+		padding: 0.7rem 1.7rem;
 		border-radius: 999px;
-		/* The one thing to press: filled, where every other button on the page is
-		   an outline. Ink on panel works on both themes. */
-		background: var(--ink);
-		border-color: var(--ink);
-		color: rgb(var(--panel-rgb));
-		font-weight: 600;
+		border: 1px solid rgb(var(--accent-rgb));
+		background: rgb(var(--accent-rgb));
+		color: #06150a;
+		font-weight: 700;
 		letter-spacing: 0.12em;
 		white-space: nowrap;
+		cursor: pointer;
+		box-shadow: 0 8px 24px -10px rgb(var(--accent-rgb) / 0.8);
+		transition:
+			transform 0.18s ease,
+			box-shadow 0.18s ease,
+			filter 0.18s ease;
 	}
-	.join-row button:hover:not(:disabled) {
-		opacity: 0.85;
+	:global(html[data-theme='light']) .join-row .join-btn {
+		color: #2a0f2e;
+	}
+	.join-arrow {
+		transition: transform 0.2s ease;
+	}
+	.join-row .join-btn:hover:not(:disabled) {
+		transform: translateY(-2px);
+		filter: brightness(1.08);
+		box-shadow: 0 14px 30px -10px rgb(var(--accent-rgb) / 0.95);
+	}
+	.join-row .join-btn:hover:not(:disabled) .join-arrow {
+		transform: translateX(4px);
+	}
+	.join-row .join-btn:active:not(:disabled) {
+		transform: translateY(0) scale(0.97);
+		box-shadow: 0 4px 12px -6px rgb(var(--accent-rgb) / 0.8);
+	}
+	.join-row .join-btn:focus-visible {
+		outline: 2px solid var(--ink);
+		outline-offset: 3px;
+	}
+	.join-row .join-btn:disabled {
+		cursor: progress;
+		opacity: 0.75;
 	}
 	@media (max-width: 520px) {
 		.join-row {
 			flex-direction: column;
 		}
+		.join-row .join-btn {
+			min-height: 3.2rem;
+		}
 	}
-	/* Disabled until the address parses, which means this is how the button looks
-	   when the page first loads — and at 0.25 the only call to action on the site
-	   arrived looking like an empty rectangle, or like something broken. It has to
-	   read as "not yet", which needs it to be legible first. */
-	.join-row button:disabled {
-		opacity: 0.6;
-		cursor: default;
-		pointer-events: none;
+	@media (prefers-reduced-motion: reduce) {
+		.join-row .join-btn,
+		.join-arrow {
+			transition: none;
+		}
+		.join-row .join-btn:hover:not(:disabled),
+		.join-row .join-btn:hover:not(:disabled) .join-arrow {
+			transform: none;
+		}
+	}
+	.join .error {
+		margin-top: 0.8rem;
+		text-align: center;
 	}
 
 	/* ── Provider row ── */
@@ -3327,10 +3435,18 @@
 		transition: border-color 0.2s, background 0.2s;
 		-webkit-tap-highlight-color: transparent;
 	}
+	.provider {
+		cursor: pointer;
+	}
 	.provider:hover,
 	.provider:focus-visible {
 		border-color: var(--ink);
 		background: rgb(var(--ink-rgb) / 0.07);
+	}
+	.provider-discord:hover,
+	.provider-discord:focus-visible {
+		border-color: #7983f5;
+		background: rgb(88 101 242 / 0.25);
 	}
 	.provider :global(svg) {
 		flex: 0 0 auto;
