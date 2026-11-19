@@ -2262,6 +2262,61 @@
 
 			<p class="coming-soon">Coming soon</p>
 
+			<div class="signup">
+			<form
+				class="join"
+				method="POST"
+				use:enhance={() => {
+					submitting = true;
+					formError = '';
+					return async ({ update }) => {
+						submitting = false;
+						await update();
+					};
+				}}
+				novalidate
+			>
+				<h2 class="join-title" id="join-title">Get notified</h2>
+				<p class="join-sub">We'll email you the day Ammoura opens.</p>
+				<p class="join-perk"><span aria-hidden="true">★</span> Early sign-ups get special perks</p>
+				<div class="join-row">
+					<input
+						id="join-email"
+						name="email"
+						type="email"
+						bind:value={email}
+						placeholder="you@example.com"
+						aria-labelledby="join-title"
+						autocomplete="email"
+						required
+					/>
+					<input type="hidden" name="_clientData" value={clientData} />
+					<button type="submit" disabled={!formValid || submitting}>
+						{submitting ? 'Signing up…' : 'Get notified'}
+					</button>
+				</div>
+				{#if formError}
+					<p class="error">{formError}</p>
+				{/if}
+				{#if joinMessage}
+					<p class="error">{joinMessage}</p>
+				{/if}
+			</form>
+
+			{#if data.providers?.length}
+				<p class="or">or</p>
+				<div class="providers">
+					{#each data.providers as p (p.id)}
+						<a class="provider provider-{p.id}" href="/auth/join/{p.id}"
+							aria-label="Join with {p.label}" title="Join with {p.label}">
+							{@html PROVIDER_ICON[p.id]}
+							<span class="provider-label">Join with {p.label}</span>
+						</a>
+					{/each}
+				</div>
+			{/if}
+			</div>
+
 			<!-- Track 1 of Ammoura.me. Playing it re-runs the flight on a loop. -->
 			<button class="play-btn" onclick={togglePlay} aria-pressed={playing}
 				aria-label={playing ? 'Pause BIRTH' : 'Play BIRTH by davis9001'}>
@@ -2286,58 +2341,6 @@
 					<span class="drop-cta">Get it at davis9001.com <span class="drop-arrow" aria-hidden="true">&rarr;</span></span>
 				</span>
 			</a>
-
-			<form
-				class="join"
-				method="POST"
-				use:enhance={() => {
-					submitting = true;
-					formError = '';
-					return async ({ update }) => {
-						submitting = false;
-						await update();
-					};
-				}}
-				novalidate
-			>
-				<h2 class="join-title" id="join-title">Join the waitlist</h2>
-				<p class="join-sub">Get an email the day Ammoura opens.</p>
-				<div class="join-row">
-					<input
-						id="join-email"
-						name="email"
-						type="email"
-						bind:value={email}
-						placeholder="you@example.com"
-						aria-labelledby="join-title"
-						autocomplete="email"
-						required
-					/>
-					<input type="hidden" name="_clientData" value={clientData} />
-					<button type="submit" disabled={!formValid || submitting}>
-						{submitting ? 'Joining…' : 'Join the waitlist'}
-					</button>
-				</div>
-				{#if formError}
-					<p class="error">{formError}</p>
-				{/if}
-				{#if joinMessage}
-					<p class="error">{joinMessage}</p>
-				{/if}
-			</form>
-
-			{#if data.providers?.length}
-				<p class="or">or</p>
-				<div class="providers">
-					{#each data.providers as p (p.id)}
-						<a class="provider provider-{p.id}" href="/auth/join/{p.id}"
-							aria-label="Join with {p.label}" title="Join with {p.label}">
-							{@html PROVIDER_ICON[p.id]}
-							<span class="provider-label">Join with {p.label}</span>
-						</a>
-					{/each}
-				</div>
-			{/if}
 
 			{@render socials()}
 		</section>
@@ -3164,6 +3167,8 @@
 		width: 100%;
 		max-width: 34rem;
 		margin: 0 auto;
+		/* The global form gap spaces every child; here the margins do it. */
+		gap: 0;
 	}
 	/* Says what the form is. The row below was a bare field and a button reading
 	   "Join", which asked the visitor to guess what they were joining. */
@@ -3174,8 +3179,36 @@
 		font-weight: 400;
 		letter-spacing: 0.08em;
 	}
+	/* One card for the whole ask, so the field, the button, the perk and the
+	   Discord option read as a single thing to do, apart from the play button and
+	   the hoodie around it. */
+	.signup {
+		width: 100%;
+		max-width: 36rem;
+		margin: 0 auto 1.75rem;
+		padding: 1.5rem 1.5rem 1.4rem;
+		border: 1px solid rgb(var(--ink-rgb) / 0.3);
+		border-radius: 1.25rem;
+		background: rgb(var(--panel-rgb) / 0.62);
+		-webkit-backdrop-filter: blur(6px);
+		backdrop-filter: blur(6px);
+	}
+	.signup .or {
+		margin: 1.1rem 0 0.8rem;
+	}
+	.join .join-perk {
+		align-self: center;
+		margin: 0 0 1.1rem;
+		padding: 0.3rem 0.8rem;
+		border: 1px solid rgb(var(--ink-rgb) / 0.35);
+		border-radius: 999px;
+		font-size: 0.8rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		background: rgb(var(--ink-rgb) / 0.08);
+	}
 	.join .join-sub {
-		margin: 0 0 1rem;
+		margin: 0 0 0.7rem;
 		line-height: 1.3;
 		font-size: 0.95rem;
 		opacity: 0.75;
