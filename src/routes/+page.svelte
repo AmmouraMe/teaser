@@ -21,35 +21,9 @@
 		unicornRequested
 	} from '$lib/seo.js';
 
-	// The countdown target is LAUNCH_ISO itself. It used to be a second copy of
-	// the same instant written out here, which is one edit away from a page that
-	// counts down to one date and tells crawlers another.
+	// The hero arc still follows the time left to LAUNCH_ISO, but nothing on the
+	// page shows a number: the page says "Coming soon".
 	const TARGET = new Date(LAUNCH_ISO).getTime();
-	let days = $state('--');
-	let hours = $state('--');
-	let minutes = $state('--');
-	let seconds = $state('--');
-
-	function updateCountdown() {
-		const diff = TARGET - Date.now();
-		if (diff <= 0) {
-			days = '00'; hours = '00'; minutes = '00'; seconds = '00';
-			return false;
-		}
-		days = String(Math.floor(diff / 86400000)).padStart(2, '0');
-		hours = String(Math.floor((diff % 86400000) / 3600000)).padStart(2, '0');
-		minutes = String(Math.floor((diff % 3600000) / 60000)).padStart(2, '0');
-		seconds = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0');
-		return true;
-	}
-
-	onMount(() => {
-		updateCountdown();
-		const interval = setInterval(() => {
-			if (!updateCountdown()) clearInterval(interval);
-		}, 1000);
-		return () => clearInterval(interval);
-	});
 
 	// ── 3D Wireframe Flight ──
 	let flightCanvas = $state();
@@ -2305,15 +2279,7 @@
 			</h1>
 			<p class="hint">A website, a storefront, and everything behind them.</p>
 
-			<div class="countdown">
-				<div class="countdown-segment"><span class="countdown-value">{days}</span><span class="countdown-label">Days</span></div>
-				<span class="countdown-sep">:</span>
-				<div class="countdown-segment"><span class="countdown-value">{hours}</span><span class="countdown-label">Hrs</span></div>
-				<span class="countdown-sep">:</span>
-				<div class="countdown-segment"><span class="countdown-value">{minutes}</span><span class="countdown-label">Min</span></div>
-				<span class="countdown-sep">:</span>
-				<div class="countdown-segment"><span class="countdown-value">{seconds}</span><span class="countdown-label">Sec</span></div>
-			</div>
+			<p class="coming-soon">Coming soon</p>
 
 			<!-- Track 1 of Ammoura.me. Playing it re-runs the flight on a loop. -->
 			<button class="play-btn" onclick={togglePlay} aria-pressed={playing}
@@ -2570,76 +2536,23 @@
 		}
 	}
 
-	/* ── Countdown ── */
-	.countdown {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		margin-bottom: 2.5rem;
-	}
-
-	.countdown-segment {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		min-width: 3.2rem;
-	}
-
-	.countdown-value {
-		font-size: 1.6rem;
-		letter-spacing: 0.1em;
-		font-variant-numeric: tabular-nums;
-		font-weight: 400;
-	}
-
-	.countdown-label {
-		font-size: 0.6rem;
-		letter-spacing: 0.18em;
-		text-transform: uppercase;
-		opacity: 0.4;
-		margin-top: 0.15rem;
-	}
-
-	.countdown-sep {
+	/* ── Coming soon ── */
+	.coming-soon {
+		margin: 0 0 2.5rem;
 		font-size: 1.3rem;
-		opacity: 0.3;
-		align-self: flex-start;
-		margin-top: 0.15rem;
+		font-weight: 400;
+		letter-spacing: 0.3em;
+		text-transform: uppercase;
 	}
 
 	@media (min-width: 480px) {
-		.countdown {
-			gap: 0.75rem;
-		}
-		.countdown-segment {
-			min-width: 4rem;
-		}
-		.countdown-value {
-			font-size: 2.2rem;
-		}
-		.countdown-label {
-			font-size: 0.65rem;
-		}
-		.countdown-sep {
+		.coming-soon {
 			font-size: 1.6rem;
 		}
 	}
 
 	@media (min-width: 768px) {
-		.countdown {
-			gap: 1rem;
-		}
-		.countdown-segment {
-			min-width: 5rem;
-		}
-		.countdown-value {
-			font-size: 2.8rem;
-		}
-		.countdown-label {
-			font-size: 0.7rem;
-			letter-spacing: 0.2em;
-		}
-		.countdown-sep {
+		.coming-soon {
 			font-size: 2rem;
 		}
 	}
@@ -2687,7 +2600,7 @@
 	.tagline,
 	h1,
 	.hint,
-	.countdown {
+	.coming-soon {
 		text-shadow:
 			0 0 6px rgb(var(--halo-rgb) / 0.92),
 			0 1px 3px rgb(var(--halo-rgb) / 0.8);
@@ -3424,7 +3337,7 @@
 		.tagline {
 			margin-bottom: 1.25rem;
 		}
-		.countdown {
+		.coming-soon {
 			margin-bottom: 1.75rem;
 		}
 	}
@@ -3437,7 +3350,7 @@
 		.hint {
 			margin-bottom: 1.5rem;
 		}
-		.countdown {
+		.coming-soon {
 			margin-bottom: 1.5rem;
 		}
 	}
