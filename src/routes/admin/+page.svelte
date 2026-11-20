@@ -86,6 +86,11 @@
 		</div>
 	</header>
 
+	<nav class="section-nav" aria-label="Admin sections">
+		<a class="section-tab active" href="/admin" aria-current="page">Waitlist</a>
+		<a class="section-tab" href="/admin/traffic">Traffic</a>
+	</nav>
+
 	{#if data.entries.length === 0 && data.archivedEntries.length === 0}
 		<p class="empty">No entries yet.</p>
 	{:else}
@@ -366,6 +371,31 @@
 	}
 	.logout:hover {
 		text-decoration: underline;
+	}
+
+	.section-nav {
+		display: flex;
+		margin-bottom: 1.5rem;
+		border-bottom: 2px solid #333;
+	}
+
+	.section-tab {
+		color: #888;
+		font-size: 0.9rem;
+		padding: 0.6rem 1.25rem;
+		text-decoration: none;
+		border-bottom: 2px solid transparent;
+		margin-bottom: -2px;
+		transition: color 0.15s, border-color 0.15s;
+	}
+
+	.section-tab:hover {
+		color: #ccc;
+	}
+
+	.section-tab.active {
+		color: #fff;
+		border-bottom-color: #7db8ff;
 	}
 
 	.count {

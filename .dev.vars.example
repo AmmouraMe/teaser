@@ -28,3 +28,9 @@ APPLE_CLIENT_ID=
 APPLE_TEAM_ID=
 APPLE_KEY_ID=
 APPLE_PRIVATE_KEY=
+
+# /admin/traffic: Cloudflare analytics for the ammoura.me zone.
+# CF_API_TOKEN needs Analytics: Read on that zone. CF_ZONE_ID is on the zone's
+# Overview page. Leave both unset and the page says what to add.
+CF_API_TOKEN=
+CF_ZONE_ID=
