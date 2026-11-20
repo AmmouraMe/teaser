@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { fetchTraffic } from './traffic.js';
+import { fetchTraffic, looksLikeBrowser } from './traffic.js';
 
 const NOW = new Date('2026-11-20T12:00:00Z');
 
@@ -114,5 +114,81 @@ describe('fetchTraffic', () => {
 		const f = vi.fn().mockRejectedValue(new Error('offline'));
 		const t = await fetchTraffic({ token: 'tok', zoneId: 'zone', now: NOW, fetchImpl: /** @type {any} */ (f) });
 		expect(t.error).toBe('offline');
+	});
+});
+
+const CHROME = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+
+describe('looksLikeBrowser', () => {
+	it('accepts browsers and rejects scripts, scanners and previews', () => {
+		expect(looksLikeBrowser(CHROME)).toBe(true);
+		expect(looksLikeBrowser('curl/8.4.0')).toBe(false);
+		expect(looksLikeBrowser('Mozilla/5.0 (compatible; Googlebot/2.1)')).toBe(false);
+		expect(looksLikeBrowser('Hello from Palo Alto Networks, find out more about our scans')).toBe(false);
+		expect(looksLikeBrowser('Mozilla/5.0 (compatible; CMS-Checker/1.0)')).toBe(false);
+		expect(looksLikeBrowser('Mozilla/5.0 (Macintosh) Discordbot/2.0')).toBe(false);
+		expect(looksLikeBrowser('')).toBe(false);
+	});
+});
+
+describe('fetchTraffic, likely real visitors', () => {
+	const NOW2 = new Date('2026-11-20T12:00:00Z');
+	/** One reply for a day query: html rows for the first alias of the first chunk, JS fetches for it too. */
+	function dayReply(/** @type {Record<string, any[]>} */ extra) {
+		return reply({ data: { viewer: { zones: [extra] } } });
+	}
+	const row = (/** @type {string} */ ip, /** @type {string} */ ua, path = '/', count = 1, cc = 'US', vb = '') => ({
+		count,
+		dimensions: { clientIP: ip, userAgent: ua, clientRequestPath: path, clientCountryName: cc, verifiedBotCategory: vb }
+	});
+
+	it('keeps only a browser that also fetched the JavaScript, and counts distinct addresses', async () => {
+		const today = [
+			row('1.1.1.1', CHROME, '/', 3),
+			row('1.1.1.1', CHROME, '/hammurabi', 1),
+			row('2.2.2.2', CHROME, '/', 5), // never fetched the JS: a scanner reading HTML
+			row('3.3.3.3', 'curl/8.4.0', '/', 9),
+			row('4.4.4.4', CHROME, '/', 2, 'DE', 'Search Engine Crawler'),
+			row('1.1.1.1', CHROME, '/admin', 7)
+		];
+		// Today is the last of 30 days, so it lands in the third chunk at alias 9.
+		const f = vi
+			.fn()
+			.mockResolvedValueOnce(reply(daily)) // daily
+			.mockResolvedValueOnce(reply(pages)) // top paths
+			.mockResolvedValueOnce(dayReply({})) // days 1-10
+			.mockResolvedValueOnce(dayReply({})) // days 11-20
+			.mockResolvedValueOnce(dayReply({ h9: today, a9: [{ dimensions: { clientIP: '1.1.1.1' } }, { dimensions: { clientIP: '3.3.3.3' } }, { dimensions: { clientIP: '4.4.4.4' } }] }));
+		const t = await fetchTraffic({ token: 'tok', zoneId: 'zone', now: NOW2, fetchImpl: /** @type {any} */ (f) });
+		expect(t.human?.totals).toEqual({ visitors7: 1, visitors30: 1, pageViews7: 4, pageViews30: 4 });
+		expect(t.human?.days.at(-1)).toEqual({ date: '2026-11-20', visitors: 1, pageViews: 4 });
+		expect(t.human?.countries).toEqual([{ name: 'US', visitors: 1 }]);
+		expect(t.human?.topPaths).toEqual([
+			{ path: '/', views: 3 },
+			{ path: '/hammurabi', views: 1 }
+		]);
+		// The raw numbers are untouched.
+		expect(t.totals.visitors30).toBe(40);
+	});
+
+	it('asks for ten days at a time, because Cloudflare refuses more', async () => {
+		const f = vi.fn().mockImplementation(async (/** @type {string} */ _u, /** @type {any} */ init) =>
+			init.body.includes('httpRequests1dGroups') ? reply(daily) : dayReply({})
+		);
+		await fetchTraffic({ token: 'tok', zoneId: 'zone', now: NOW2, fetchImpl: /** @type {any} */ (f) });
+		// daily + top paths + three day-chunks
+		expect(f).toHaveBeenCalledTimes(5);
+	});
+
+	it('leaves human null when that query fails but keeps everything else', async () => {
+		const f = vi
+			.fn()
+			.mockResolvedValueOnce(reply(daily))
+			.mockResolvedValueOnce(reply(pages))
+			.mockResolvedValue(reply({ errors: [{ message: 'nope' }] }));
+		const t = await fetchTraffic({ token: 'tok', zoneId: 'zone', now: NOW2, fetchImpl: /** @type {any} */ (f) });
+		expect(t.human).toBeNull();
+		expect(t.error).toBeUndefined();
+		expect(t.totals.visitors30).toBe(40);
 	});
 });

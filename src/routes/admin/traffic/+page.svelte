@@ -7,6 +7,10 @@
 	/** @param {number} n */
 	const n = (n) => fmt.format(n);
 
+	const h = $derived(t.human);
+	const maxHumanDay = $derived(Math.max(1, ...(h?.days ?? []).map((d) => d.visitors)));
+	const maxHumanCountry = $derived(Math.max(1, ...(h?.countries ?? []).map((c) => c.visitors)));
+	const maxHumanPath = $derived(Math.max(1, ...(h?.topPaths ?? []).map((p) => p.views)));
 	const maxVisitors = $derived(Math.max(1, ...t.days.map((d) => d.visitors)));
 	const maxCountry = $derived(Math.max(1, ...t.countries.map((c) => c.requests)));
 	const maxPath = $derived(Math.max(1, ...(t.topPaths ?? []).map((p) => p.views)));
@@ -68,6 +72,92 @@
 			<p>{t.error}</p>
 		</section>
 	{:else}
+		<h2 class="section">Likely real visitors</h2>
+		{#if h}
+			<div class="stats-bar">
+				<div class="stat strong">
+					<span class="stat-value">{n(h.totals.visitors7)}</span>
+					<span class="stat-label">Visitors, 7 days</span>
+				</div>
+				<div class="stat strong">
+					<span class="stat-value">{n(h.totals.pageViews7)}</span>
+					<span class="stat-label">Page views, 7 days</span>
+				</div>
+				<div class="stat strong">
+					<span class="stat-value">{n(h.totals.visitors30)}</span>
+					<span class="stat-label">Visitors, 30 days</span>
+				</div>
+				<div class="stat strong">
+					<span class="stat-value">{n(h.totals.pageViews30)}</span>
+					<span class="stat-label">Page views, 30 days</span>
+				</div>
+			</div>
+
+			<section class="panel">
+				<h2>Visitors per day</h2>
+				<div class="bars" role="img" aria-label="Likely real visitors per day for the last {h.days.length} days">
+					{#each h.days as d (d.date)}
+						<div class="bar-col" title="{shortDate(d.date)}: {n(d.visitors)} visitors, {n(d.pageViews)} page views">
+							<span class="bar good" style="height: {d.visitors === 0 ? 0 : Math.max(2, (d.visitors / maxHumanDay) * 100)}%"></span>
+						</div>
+					{/each}
+				</div>
+				<div class="axis">
+					<span>{shortDate(h.days[0].date)}</span>
+					<span>{shortDate(h.days[h.days.length - 1].date)}</span>
+				</div>
+			</section>
+
+			<div class="two">
+				<section class="panel">
+					<h2>Countries, visitors</h2>
+					{#if h.countries.length === 0}
+						<p class="empty">Nothing yet.</p>
+					{:else}
+						<ul class="rows">
+							{#each h.countries as c (c.name)}
+								<li>
+									<span class="row-name">{c.name}</span>
+									<span class="row-bar"><span class="good" style="width: {(c.visitors / maxHumanCountry) * 100}%"></span></span>
+									<span class="row-num">{n(c.visitors)}</span>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				</section>
+
+				<section class="panel">
+					<h2>Pages, last 30 days</h2>
+					{#if h.topPaths.length === 0}
+						<p class="empty">Nothing yet.</p>
+					{:else}
+						<ul class="rows">
+							{#each h.topPaths as p (p.path)}
+								<li>
+									<span class="row-name mono">{p.path}</span>
+									<span class="row-bar"><span class="good" style="width: {(p.views / maxHumanPath) * 100}%"></span></span>
+									<span class="row-num">{n(p.views)}</span>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				</section>
+			</div>
+
+			<p class="note">
+				A rule of thumb, not a verdict. It counts a real page load from a browser-looking user
+				agent that is not a known bot, from an address that also fetched the site's own
+				JavaScript. A visitor is a distinct address over the whole window, so someone who comes
+				back is counted once. It still misses people behind a shared address and lets through
+				bots that act like browsers, and Cloudflare's free plan has no bot score to do better.
+			</p>
+		{:else}
+			<section class="panel">
+				<p class="empty">Could not work out the likely-real numbers this time. The raw numbers below still stand.</p>
+			</section>
+		{/if}
+
+		<h2 class="section">All traffic, bots included</h2>
 		<div class="stats-bar">
 			<div class="stat">
 				<span class="stat-value">{n(t.totals.visitors7)}</span>
@@ -92,7 +182,7 @@
 			{#if t.days.length === 0}
 				<p class="empty">No traffic recorded yet.</p>
 			{:else}
-				<div class="bars" role="img" aria-label="Visitors per day for the last {t.days.length} days">
+				<div class="bars" role="img" aria-label="All visitors per day for the last {t.days.length} days">
 					{#each t.days as d (d.date)}
 						<div class="bar-col" title="{shortDate(d.date)}: {n(d.visitors)} visitors, {n(d.pageViews)} page views">
 							<span class="bar" style="height: {Math.max(2, (d.visitors / maxVisitors) * 100)}%"></span>
@@ -108,7 +198,7 @@
 
 		<div class="two">
 			<section class="panel">
-				<h2>Countries</h2>
+				<h2>Countries, requests</h2>
 				{#if t.countries.length === 0}
 					<p class="empty">Nothing yet.</p>
 				{:else}
@@ -145,8 +235,9 @@
 		</div>
 
 		<p class="note">
-			These are Cloudflare's counts at the edge. A visitor is a unique address on a given day, and
-			bots and link previews are included, so read them as traffic, not as people.
+			Cloudflare's own counts at the edge. A visitor is a unique address on a given day, and the
+			30-day figure adds the days up. Bots, scanners and link previews are all in here, so read it
+			as traffic, not as people. The country bars count requests, not visitors.
 		</p>
 	{/if}
 </main>
@@ -307,6 +398,23 @@
 		border-radius: 2px 2px 0 0;
 		opacity: 0.85;
 		transition: opacity 0.15s;
+	}
+	.bar.good,
+	.row-bar span.good {
+		background: #6fe0a0;
+	}
+	.stat.strong {
+		border-color: #2c3a30;
+	}
+	h2.section {
+		font-size: 1rem;
+		color: #fff;
+		text-transform: none;
+		letter-spacing: 0;
+		margin: 0 0 1rem;
+	}
+	.note + h2.section {
+		margin-top: 2.25rem;
 	}
 	.bar-col:hover .bar {
 		opacity: 1;
