@@ -2288,7 +2288,7 @@
 			<!-- The first thing you can own: the hoodie, sold on David's own shop
 			     (davis9001.com) until the Ammoura storefront exists. 2026-11-13. -->
 			<a class="drop" href="https://davis9001.com/shop/ammoura" target="_blank" rel="noopener">
-				<span class="drop-shot"><img src="/merch/ammoura-hoodie.webp" alt="The Ammoura hoodie, black" width="88" height="88" loading="eager" decoding="async" /></span>
+				<span class="drop-shot"><img src={theme === 'light' ? '/merch/ammoura-hoodie-light.webp' : '/merch/ammoura-hoodie.webp'} alt={theme === 'light' ? 'The Ammoura hoodie, light' : 'The Ammoura hoodie, black'} width="88" height="88" loading="eager" decoding="async" /></span>
 				<span class="drop-text">
 					<span class="drop-kicker"><span class="drop-dot" aria-hidden="true"></span>Drop 01 &middot; Out now</span>
 					<span class="drop-name">The Ammoura Hoodie</span>
