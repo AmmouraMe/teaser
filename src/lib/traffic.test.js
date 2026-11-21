@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { fetchTraffic, looksLikeBrowser } from './traffic.js';
+import { fetchTraffic, looksLikeBrowser, localDays } from './traffic.js';
 
 const NOW = new Date('2026-11-20T12:00:00Z');
 
@@ -190,5 +190,20 @@ describe('fetchTraffic, likely real visitors', () => {
 		expect(t.human).toBeNull();
 		expect(t.error).toBeUndefined();
 		expect(t.totals.visitors30).toBe(40);
+	});
+});
+
+describe('localDays', () => {
+	it('cuts days at local midnight, not UTC', () => {
+		const days = localDays(new Date('2026-11-21T01:00:00Z'), 2, 'America/Phoenix');
+		// 01:00 UTC on the 21st is 6pm on the 20th in Arizona (UTC-7, no DST).
+		expect(days.map((d) => d.date)).toEqual(['2026-11-19', '2026-11-20']);
+		expect(days[1]).toEqual({ date: '2026-11-20', start: '2026-11-20T07:00:00.000Z', end: '2026-11-21T06:59:59.000Z' });
+	});
+
+	it('handles a daylight saving change and an unknown zone', () => {
+		const ny = localDays(new Date('2026-11-02T12:00:00Z'), 2, 'America/New_York');
+		expect(ny[0]).toEqual({ date: '2026-11-01', start: '2026-11-01T04:00:00.000Z', end: '2026-11-02T04:59:59.000Z' }); // 25-hour day
+		expect(localDays(new Date('2026-11-20T12:00:00Z'), 1, 'Not/AZone')[0].start).toBe('2026-11-20T00:00:00.000Z');
 	});
 });

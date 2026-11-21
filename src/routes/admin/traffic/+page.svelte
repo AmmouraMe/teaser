@@ -94,7 +94,7 @@
 			</div>
 
 			<section class="panel">
-				<h2>Visitors per day</h2>
+				<h2>Visitors per day, {h.timeZone}</h2>
 				<div class="bars" role="img" aria-label="Likely real visitors per day for the last {h.days.length} days">
 					{#each h.days as d (d.date)}
 						<div class="bar-col" title="{shortDate(d.date)}: {n(d.visitors)} visitors, {n(d.pageViews)} page views">
@@ -148,7 +148,7 @@
 				A rule of thumb, not a verdict. It counts a real page load from a browser-looking user
 				agent that is not a known bot, from an address that also fetched the site's own
 				JavaScript. A visitor is a distinct address over the whole window, so someone who comes
-				back is counted once. It still misses people behind a shared address and lets through
+				back is counted once. Days run midnight to midnight in {h.timeZone}. It still misses people behind a shared address and lets through
 				bots that act like browsers, and Cloudflare's free plan has no bot score to do better.
 			</p>
 		{:else}
@@ -178,7 +178,7 @@
 		</div>
 
 		<section class="panel">
-			<h2>Visitors per day</h2>
+			<h2>Visitors per day, UTC days</h2>
 			{#if t.days.length === 0}
 				<p class="empty">No traffic recorded yet.</p>
 			{:else}
@@ -235,8 +235,9 @@
 		</div>
 
 		<p class="note">
-			Cloudflare's own counts at the edge. A visitor is a unique address on a given day, and the
-			30-day figure adds the days up. Bots, scanners and link previews are all in here, so read it
+			Cloudflare's own counts at the edge. Its days are cut at midnight UTC and the last one is
+			still filling, so it can show a few hours of tomorrow. A visitor is a unique address on a
+			given day, and the 30-day figure adds the days up. Bots, scanners and link previews are all in here, so read it
 			as traffic, not as people. The country bars count requests, not visitors.
 		</p>
 	{/if}
