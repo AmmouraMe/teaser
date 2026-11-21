@@ -8,6 +8,11 @@ declare global {
         WAITLIST: KVNamespace;
         DISCORD_WEBHOOK_URL: string;
 
+        // /admin/traffic reads Cloudflare's own analytics. Both are needed;
+        // without them the page says what to add. See src/lib/traffic.js.
+        CF_API_TOKEN?: string;   // API token with Analytics: Read on the zone
+        CF_ZONE_ID?: string;     // the ammoura.me zone id
+
         // Admin login (/auth/discord) — gated to a single username.
         // Also serves as the Discord join button's credentials; the same
         // OAuth app can do both, but BOTH redirect URIs must be registered.
