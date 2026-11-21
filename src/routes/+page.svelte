@@ -2285,8 +2285,6 @@
 			</h1>
 			<p class="hint">A website, a storefront, and everything behind them.</p>
 
-			<p class="coming-soon">Coming soon</p>
-
 			<!-- The first thing you can own: the hoodie, sold on David's own shop
 			     (davis9001.com) until the Ammoura storefront exists. 2026-11-13. -->
 			<a class="drop" href="https://davis9001.com/shop/ammoura" target="_blank" rel="noopener">
@@ -2297,6 +2295,8 @@
 					<span class="drop-cta">Get it at davis9001.com <span class="drop-arrow" aria-hidden="true">&rarr;</span></span>
 				</span>
 			</a>
+
+			<p class="coming-soon">Coming soon</p>
 
 			<div class="signup">
 			<form
