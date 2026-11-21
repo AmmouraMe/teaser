@@ -2166,14 +2166,20 @@
 	$effect(() => {
 		if (typeof window === 'undefined') return;
 
+		// Themed, and read here so the effect re-runs when the theme flips: forcing
+		// black onto the field painted a dark box on the light theme.
+		const bg = theme === 'light' ? '#fff' : '#000';
+		const fg = theme === 'light' ? '#3a1e42' : '#fff';
+		const bg_rgb = theme === 'light' ? 'rgb(255, 255, 255)' : 'rgb(0, 0, 0)';
+
 		/** @param {HTMLElement} el */
 		const forceStyles = (el) => {
-			el.style.setProperty('-webkit-text-fill-color', '#fff', 'important');
-			el.style.setProperty('-webkit-box-shadow', '0 0 0px 9999px #000 inset', 'important');
-			el.style.setProperty('box-shadow', '0 0 0px 9999px #000 inset', 'important');
-			el.style.setProperty('background-color', '#000', 'important');
-			el.style.setProperty('color', '#fff', 'important');
-			el.style.setProperty('caret-color', '#fff', 'important');
+			el.style.setProperty('-webkit-text-fill-color', fg, 'important');
+			el.style.setProperty('-webkit-box-shadow', `0 0 0px 9999px ${bg} inset`, 'important');
+			el.style.setProperty('box-shadow', `0 0 0px 9999px ${bg} inset`, 'important');
+			el.style.setProperty('background-color', bg, 'important');
+			el.style.setProperty('color', fg, 'important');
+			el.style.setProperty('caret-color', fg, 'important');
 		};
 
 		// Apply to all inputs/textareas regardless of autofill state (iOS may not
@@ -2183,7 +2189,7 @@
 				const computed = getComputedStyle(el);
 				// Detect autofill: background deviates from expected black
 				if (
-					computed.backgroundColor !== 'rgb(0, 0, 0)' &&
+					computed.backgroundColor !== bg_rgb &&
 					computed.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
 					computed.backgroundColor !== 'transparent'
 				) {
@@ -2213,6 +2219,12 @@
 			document.removeEventListener('change', fixAll, true);
 			clearInterval(interval);
 			clearTimeout(timeout);
+			// Undo the forced colours so the next theme starts clean.
+			document.querySelectorAll('input, textarea').forEach((el) => {
+				for (const k of ['-webkit-text-fill-color', '-webkit-box-shadow', 'box-shadow', 'background-color', 'color', 'caret-color']) {
+					/** @type {HTMLElement} */ (el).style.removeProperty(k);
+				}
+			});
 		};
 	});
 
@@ -3136,6 +3148,9 @@
 		border-radius: 12px;
 		overflow: hidden;
 		background: #0b0b0d;
+	}
+	:global(html[data-theme='light']) .drop-shot {
+		background: #fff;
 	}
 	.drop-shot img {
 		width: 100%;
