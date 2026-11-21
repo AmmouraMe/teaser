@@ -82,13 +82,15 @@ async function finish({ params, url, platform, cookies, request, getClientAddres
 		}
 	};
 
+	let saved;
 	try {
-		await saveEntry(env.WAITLIST, entry);
+		saved = await saveEntry(env.WAITLIST, entry);
 	} catch (err) {
 		console.error('join: KV write failed', err);
 		return back('failed');
 	}
 
-	await notifyJoin(env.DISCORD_WEBHOOK_URL, entry);
+	// Already on the list: nothing was written, so nothing to announce.
+	if (!saved.duplicate) await notifyJoin(env.DISCORD_WEBHOOK_URL, entry);
 	return back('ok');
 }

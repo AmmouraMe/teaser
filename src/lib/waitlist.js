@@ -4,7 +4,7 @@
  * Both paths must write the same shape or /admin stops being able to read the
  * list. Keys:
  *   entry:<uid>             one submission
- *   seen_email:<email>      dedupe marker
+ *   seen_email:<email>      dedupe marker (key from dedupeEmail: Gmail dots folded, +tags kept)
  *   counter:unique_emails   running count of distinct emails
  */
 
@@ -21,10 +21,14 @@
  */
 
 /**
- * Persist an entry. Returns whether this email had been seen before.
+ * Persist an entry, once per email. Returns whether it was written.
  *
- * A duplicate is still written — repeat signups are history, not errors — but
- * the unique counter only moves the first time.
+ * A repeat of an email already on the list writes nothing and the caller
+ * posts nothing: every KV write spends quota and every post lands in the
+ * webhook channel, so a resubmitted form (or a script resubmitting it) must
+ * cost one read and nothing else. The check is a KV read, so two submissions
+ * of a brand-new email inside KV's propagation window can both get through;
+ * that is rare and harmless.
  *
  * @param {any} kv
  * @param {WaitlistEntry} entry
@@ -36,18 +40,44 @@ export async function saveEntry(kv, entry) {
 		return { stored: false, duplicate: false };
 	}
 
-	const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-	await kv.put(`entry:${uid}`, JSON.stringify(entry));
-
-	const emailKey = `seen_email:${entry.email.toLowerCase()}`;
-	const alreadySeen = await kv.get(emailKey);
-	if (!alreadySeen) {
-		await kv.put(emailKey, '1');
-		const current = parseInt((await kv.get('counter:unique_emails')) || '0', 10);
-		await kv.put('counter:unique_emails', String(current + 1));
+	const lower = entry.email.toLowerCase();
+	const emailKey = `seen_email:${dedupeEmail(entry.email)}`;
+	if (await kv.get(emailKey)) return { stored: false, duplicate: true };
+	// Markers written before Gmail dots were folded are keyed by the plain
+	// lowercase address; honour those too so an existing signup stays one.
+	if (`seen_email:${lower}` !== emailKey && (await kv.get(`seen_email:${lower}`))) {
+		return { stored: false, duplicate: true };
 	}
 
-	return { stored: true, duplicate: Boolean(alreadySeen) };
+	const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+	await kv.put(`entry:${uid}`, JSON.stringify(entry));
+	await kv.put(emailKey, '1');
+	const current = parseInt((await kv.get('counter:unique_emails')) || '0', 10);
+	await kv.put('counter:unique_emails', String(current + 1));
+
+	return { stored: true, duplicate: false };
+}
+
+/**
+ * The dedupe identity of an email: trimmed and lowercased, and for Gmail
+ * (gmail.com / googlemail.com) with the dots in the local part removed, since
+ * Gmail ignores them and n.a.me@gmail.com reaches name@gmail.com. "+tags" are
+ * deliberately KEPT: a tagged address is treated as its own signup (David,
+ * 2026-10-08). Only the dedupe key uses this; the stored entry keeps the
+ * address exactly as typed.
+ *
+ * @param {string} email
+ * @returns {string}
+ */
+export function dedupeEmail(email) {
+	const e = email.trim().toLowerCase();
+	const at = e.lastIndexOf('@');
+	if (at < 1) return e;
+	let local = e.slice(0, at);
+	let domain = e.slice(at + 1);
+	if (domain === 'googlemail.com') domain = 'gmail.com';
+	if (domain === 'gmail.com') local = local.replaceAll('.', '');
+	return `${local}@${domain}`;
 }
 
 // ── Email-form helpers ───────────────────────────────────────────────────────

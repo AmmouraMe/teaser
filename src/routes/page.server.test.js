@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { actions, load } from './+page.server.js';
 import { memoryKV } from '$lib/kv.test-helper.js';
+import { SIGNUP_LIMIT } from '$lib/ratelimit.js';
 
 afterEach(() => {
 	vi.unstubAllGlobals();
@@ -83,6 +84,79 @@ describe('waitlist email action', () => {
 			success: false,
 			error: 'Something broke. Try again.'
 		});
+	});
+});
+
+describe('waitlist abuse limits', () => {
+	/** @param {string} ip */
+	const from = (ip) => ({ 'cf-connecting-ip': ip });
+
+	it('a repeat email writes nothing and posts nothing, but still says yes', async () => {
+		const f = vi.fn(async () => new Response(null, { status: 204 }));
+		vi.stubGlobal('fetch', f);
+		const kv = memoryKV();
+		const env = { WAITLIST: kv, DISCORD_WEBHOOK_URL: 'https://hook' };
+
+		await submit({ email: 'a@person.dev' }, env, from('198.51.100.1'));
+		const before = new Map(kv.store);
+		const put = vi.spyOn(kv, 'put');
+
+		const res = await submit({ email: 'A@Person.dev' }, env, from('198.51.100.2'));
+		expect(res).toEqual({ success: true, email: 'A@Person.dev' });
+		expect(put).not.toHaveBeenCalled();
+		expect(kv.store).toEqual(before);
+		expect(f).toHaveBeenCalledOnce();
+	});
+
+	it('refuses a client past the limit without writing or posting', async () => {
+		const f = vi.fn(async () => new Response(null, { status: 204 }));
+		vi.stubGlobal('fetch', f);
+		const kv = memoryKV();
+		const env = { WAITLIST: kv, DISCORD_WEBHOOK_URL: 'https://hook' };
+
+		for (let i = 0; i < SIGNUP_LIMIT; i++) {
+			expect(await submit({ email: `p${i}@person.dev` }, env, from('198.51.100.1'))).toMatchObject({ success: true });
+		}
+		expect(f).toHaveBeenCalledTimes(SIGNUP_LIMIT);
+
+		const put = vi.spyOn(kv, 'put');
+		const res = await submit({ email: 'one-more@person.dev' }, env, from('198.51.100.1'));
+		expect(res).toEqual({ success: false, error: 'Too many tries. Come back in an hour.' });
+		expect(put).not.toHaveBeenCalled();
+		expect(f).toHaveBeenCalledTimes(SIGNUP_LIMIT);
+		expect(kv.store.get('counter:unique_emails')).toBe(String(SIGNUP_LIMIT));
+
+		// Someone else is unaffected.
+		expect(await submit({ email: 'other@person.dev' }, env, from('198.51.100.2'))).toMatchObject({ success: true });
+	});
+
+	it('spends exactly one extra write per accepted signup on the limiter', async () => {
+		const kv = memoryKV();
+		const put = vi.spyOn(kv, 'put');
+		await submit({ email: 'a@person.dev' }, { WAITLIST: kv }, from('198.51.100.1'));
+		const keys = put.mock.calls.map((c) => /** @type {any} */ (c)[0]);
+		expect(keys.filter((k) => k.startsWith('ratelimit:'))).toHaveLength(1);
+		expect(keys).toHaveLength(4); // entry, seen_email, counter, ratelimit
+	});
+
+	it('repeat emails do not use up the limit', async () => {
+		const kv = memoryKV();
+		const env = { WAITLIST: kv };
+		for (let i = 0; i < SIGNUP_LIMIT * 2; i++) {
+			await submit({ email: 'same@person.dev' }, env, from('198.51.100.1'));
+		}
+		expect(await submit({ email: 'new@person.dev' }, env, from('198.51.100.1'))).toMatchObject({ success: true });
+	});
+
+	it('still takes a signup when the limiter read fails', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		const kv = memoryKV();
+		const get = kv.get.bind(kv);
+		kv.get = async (k) => {
+			if (k.startsWith('ratelimit:')) throw new Error('kv down');
+			return get(k);
+		};
+		expect(await submit({ email: 'a@person.dev' }, { WAITLIST: kv })).toMatchObject({ success: true });
 	});
 });
 
