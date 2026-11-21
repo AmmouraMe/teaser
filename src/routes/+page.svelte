@@ -2287,6 +2287,17 @@
 
 			<p class="coming-soon">Coming soon</p>
 
+			<!-- The first thing you can own: the hoodie, sold on David's own shop
+			     (davis9001.com) until the Ammoura storefront exists. 2026-11-13. -->
+			<a class="drop" href="https://davis9001.com/shop/ammoura" target="_blank" rel="noopener">
+				<span class="drop-shot"><img src="/merch/ammoura-hoodie.webp" alt="The Ammoura hoodie, black" width="88" height="88" loading="eager" decoding="async" /></span>
+				<span class="drop-text">
+					<span class="drop-kicker"><span class="drop-dot" aria-hidden="true"></span>Drop 01 &middot; Out now</span>
+					<span class="drop-name">The Ammoura Hoodie</span>
+					<span class="drop-cta">Get it at davis9001.com <span class="drop-arrow" aria-hidden="true">&rarr;</span></span>
+				</span>
+			</a>
+
 			<div class="signup">
 			<form
 				class="join"
@@ -2361,17 +2372,6 @@
 			</button>
 			<audio bind:this={audioEl} src="/audio/01-birth.mp3" preload="metadata"
 				onplay={onPlay} onpause={onPause} onended={onEnded}></audio>
-
-			<!-- The first thing you can own: the hoodie, sold on David's own shop
-			     (davis9001.com) until the Ammoura storefront exists. 2026-11-13. -->
-			<a class="drop" href="https://davis9001.com/shop/ammoura" target="_blank" rel="noopener">
-				<span class="drop-shot"><img src="/merch/ammoura-hoodie.webp" alt="The Ammoura hoodie, black" width="88" height="88" loading="eager" decoding="async" /></span>
-				<span class="drop-text">
-					<span class="drop-kicker"><span class="drop-dot" aria-hidden="true"></span>Drop 01 &middot; Out now</span>
-					<span class="drop-name">The Ammoura Hoodie</span>
-					<span class="drop-cta">Get it at davis9001.com <span class="drop-arrow" aria-hidden="true">&rarr;</span></span>
-				</span>
-			</a>
 
 			{@render socials()}
 		</section>
