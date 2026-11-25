@@ -73,6 +73,44 @@ describe('waitlist email action', () => {
 		for (const field of body.embeds[0].fields) expect(typeof field.value).toBe('string');
 	});
 
+	it('treats a repeat email as success without writing or posting', async () => {
+		const f = vi.fn(async () => new Response(null, { status: 204 }));
+		vi.stubGlobal('fetch', f);
+		const kv = memoryKV();
+		const env = { WAITLIST: kv, DISCORD_WEBHOOK_URL: 'https://hook' };
+		await submit({ email: 'a@person.dev' }, env);
+		const before = new Map(kv.store);
+		expect(await submit({ email: 'A@Person.dev' }, env)).toEqual({ success: true, email: 'A@Person.dev' });
+		expect(kv.store).toEqual(before);
+		expect(f).toHaveBeenCalledOnce();
+	});
+
+	it('limits one address to five signups a window, with no writes once limited', async () => {
+		const kv = memoryKV();
+		for (let i = 0; i < 5; i++) {
+			expect((await submit({ email: `u${i}@person.dev` }, { WAITLIST: kv })).success).toBe(true);
+		}
+		const before = new Map(kv.store);
+		const puts = vi.spyOn(kv, 'put');
+		expect(await submit({ email: 'u9@person.dev' }, { WAITLIST: kv })).toEqual({
+			success: false,
+			error: 'Too many tries. Wait a while.'
+		});
+		expect(puts).not.toHaveBeenCalled();
+		expect(kv.store).toEqual(before);
+	});
+
+	it('gives the rate-limit key a TTL and starts a new window after it', async () => {
+		const kv = memoryKV();
+		const puts = vi.spyOn(kv, 'put');
+		await submit({ email: 'a@person.dev' }, { WAITLIST: kv });
+		const rl = puts.mock.calls.find((c) => c[0] === 'rl:203.0.113.9');
+		expect(rl?.[2]).toMatchObject({ expirationTtl: expect.any(Number) });
+		// Age the window past its end: the counter must reset.
+		kv.store.set('rl:203.0.113.9', `5:${Date.now() - 3601 * 1000}`);
+		expect((await submit({ email: 'b@person.dev' }, { WAITLIST: kv })).success).toBe(true);
+	});
+
 	it('reports a KV failure instead of claiming success', async () => {
 		vi.spyOn(console, 'error').mockImplementation(() => {});
 		const kv = memoryKV();
