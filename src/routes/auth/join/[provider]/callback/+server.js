@@ -1,6 +1,6 @@
 import { redirect, error } from '@sveltejs/kit';
 import { PROVIDERS, exchangeCode, fetchIdentity, STATE_COOKIE } from '$lib/oauth.js';
-import { saveEntry, notifyJoin } from '$lib/waitlist.js';
+import { saveEntry, notifyJoin, hasSeenEmail } from '$lib/waitlist.js';
 
 /**
  * Finish an OAuth waitlist signup.
@@ -82,12 +82,18 @@ async function finish({ params, url, platform, cookies, request, getClientAddres
 		}
 	};
 
+	// Same rule as the email form: a repeat signup is a success that writes
+	// and posts nothing, so a second click cannot spam the Discord webhook.
+	// (`back` throws a redirect, so it must stay outside the try.)
+	let repeat = false;
 	try {
-		await saveEntry(env.WAITLIST, entry);
+		repeat = await hasSeenEmail(env.WAITLIST, entry.email);
+		if (!repeat) await saveEntry(env.WAITLIST, entry);
 	} catch (err) {
 		console.error('join: KV write failed', err);
 		return back('failed');
 	}
+	if (repeat) return back('ok');
 
 	await notifyJoin(env.DISCORD_WEBHOOK_URL, entry);
 	return back('ok');
