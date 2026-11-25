@@ -1,5 +1,14 @@
 import { configuredProviders } from '$lib/oauth.js';
-import { saveEntry, notifyJoin, isFakeEmail, collectServerData, parseClientData } from '$lib/waitlist.js';
+import {
+	saveEntry,
+	notifyJoin,
+	isFakeEmail,
+	collectServerData,
+	parseClientData,
+	hasSeenEmail,
+	checkRateLimit,
+	recordRateLimit
+} from '$lib/waitlist.js';
 
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ platform, url }) {
@@ -42,10 +51,23 @@ export const actions = {
 			client: clientData
 		};
 
+		const kv = platform?.env?.WAITLIST;
+		const ip = serverData.ip;
+
 		// Same writer and notifier as the OAuth join routes, so every path
 		// keeps the KV shape /admin reads.
 		try {
-			await saveEntry(platform?.env?.WAITLIST, entry);
+			// A repeat signup is a success that writes and posts nothing.
+			if (await hasSeenEmail(kv, email)) return { success: true, email };
+
+			// One read per attempt; the write happens only after a signup lands.
+			const limit = await checkRateLimit(kv, ip);
+			if (limit.limited) {
+				return { success: false, error: 'Too many tries. Wait a while.' };
+			}
+
+			await saveEntry(kv, entry);
+			await recordRateLimit(kv, ip, limit);
 		} catch (err) {
 			console.error('KV write failed:', err);
 			return { success: false, error: 'Something broke. Try again.' };

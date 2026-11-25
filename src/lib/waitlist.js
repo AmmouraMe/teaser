@@ -50,6 +50,57 @@ export async function saveEntry(kv, entry) {
 	return { stored: true, duplicate: Boolean(alreadySeen) };
 }
 
+/**
+ * Has this email already been recorded? One KV read, no writes.
+ * @param {any} kv
+ * @param {string} email
+ */
+export async function hasSeenEmail(kv, email) {
+	if (!kv) return false;
+	return Boolean(await kv.get(`seen_email:${email.toLowerCase()}`));
+}
+
+// ── Per-IP rate limit ────────────────────────────────────────────────────────
+
+/** Accepted signups allowed per address in one window. */
+export const RATE_LIMIT_MAX = 5;
+/** Window length in seconds. */
+export const RATE_LIMIT_WINDOW = 3600;
+
+/**
+ * Read the fixed-window counter for an address. One KV read, no writes.
+ * The value is `<count>:<windowStartMs>`.
+ *
+ * @param {any} kv
+ * @param {string | null | undefined} ip
+ * @returns {Promise<{ limited: boolean; count: number; start: number }>}
+ */
+export async function checkRateLimit(kv, ip) {
+	if (!kv || !ip) return { limited: false, count: 0, start: Date.now() };
+	const raw = await kv.get(`rl:${ip}`);
+	const [n, s] = (raw || '').split(':').map(Number);
+	const start = s && Date.now() - s < RATE_LIMIT_WINDOW * 1000 ? s : Date.now();
+	const count = s && start === s ? n || 0 : 0;
+	return { limited: count >= RATE_LIMIT_MAX, count, start };
+}
+
+/**
+ * Record one accepted signup against the window. One KV write. The TTL runs to
+ * the end of the original window, so the window stays fixed.
+ *
+ * @param {any} kv
+ * @param {string | null | undefined} ip
+ * @param {{ count: number; start: number }} state  from checkRateLimit
+ */
+export async function recordRateLimit(kv, ip, state) {
+	if (!kv || !ip) return;
+	const left = Math.ceil((state.start + RATE_LIMIT_WINDOW * 1000 - Date.now()) / 1000);
+	// KV refuses a TTL under 60 seconds.
+	await kv.put(`rl:${ip}`, `${state.count + 1}:${state.start}`, {
+		expirationTtl: Math.max(60, left)
+	});
+}
+
 // ── Email-form helpers ───────────────────────────────────────────────────────
 
 const FAKE_DOMAINS = [
