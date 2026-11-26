@@ -15,7 +15,7 @@ The workflow is defined in `../Ammoura-NebulaKit/CLAUDE.md` and applies to every
 
 ## Commands
 
-npm only (`package-lock.json`; `.npmrc` sets `engine-strict=true`).
+npm only (`package-lock.json`; `.npmrc` sets `engine-strict=true`). Node must be `^22.12.0 || ^24.0.0 || >=26.0.0` (`engines` in `package.json`, `.nvmrc` pins 22), because Vitest 5 refuses to install on Node 23 and 25. Without the field, `npm ci` on Node 25 failed with an unexplained `EBADENGINE` from `vitest`.
 
 - `npm run dev`: Vite dev server on **port 4237**, set in `vite.config.js`. It was moved off 4297 because another project uses that port.
 - `npm run dev:cf`: `wrangler pages dev -- vite dev`, so that the Cloudflare bindings are available. `wrangler` is not in devDependencies.
