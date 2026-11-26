@@ -978,7 +978,8 @@
 		padding-left: 1.2rem;
 	}
 
-	.caption span {
+	/* The caption is rendered with {@html}, so scoped CSS cannot see its span. */
+	.caption :global(span) {
 		font-family: 'Ammoura Cuneiform', 'Noto Sans Cuneiform', serif;
 		font-size: 1.15em;
 		color: var(--amber);
