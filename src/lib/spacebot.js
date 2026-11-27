@@ -130,8 +130,11 @@ export async function notifySignup(kv, data, fetchImpl = fetch) {
 		const c = await readConfig(kv);
 		if (!c || !c.enabled || !c.events.signup) return;
 		const result = await sendToSpaceBot(c, buildEvent('signup', data), fetchImpl);
-		// A write per signup is the cost of showing the last result; skip it when unchanged-ok is not worth it.
-		await writeConfig(kv, { ...c, lastResult: { at: new Date().toISOString(), ...result } });
+		// KV allows 1,000 writes a day and the waitlist needs them: record the result only when
+		// it changes the picture (a failure, or the first success after a failure or a test).
+		if (!result.ok || !c.lastResult?.ok) {
+			await writeConfig(kv, { ...c, lastResult: { at: new Date().toISOString(), ...result } });
+		}
 	} catch {
 		/* a signup must never break on this */
 	}
