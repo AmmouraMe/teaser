@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { fetchTraffic, fetchCodes, parseCode, looksLikeBrowser, localDays } from './traffic.js';
+import { fetchTraffic, looksLikeBrowser, localDays } from './traffic.js';
 
 const NOW = new Date('2026-11-20T12:00:00Z');
 
@@ -205,56 +205,5 @@ describe('localDays', () => {
 		const ny = localDays(new Date('2026-11-02T12:00:00Z'), 2, 'America/New_York');
 		expect(ny[0]).toEqual({ date: '2026-11-01', start: '2026-11-01T04:00:00.000Z', end: '2026-11-02T04:59:59.000Z' }); // 25-hour day
 		expect(localDays(new Date('2026-11-20T12:00:00Z'), 1, 'Not/AZone')[0].start).toBe('2026-11-20T00:00:00.000Z');
-	});
-});
-
-describe('campaign codes', () => {
-	const row = (/** @type {any} */ d, count = 1) => ({
-		count,
-		dimensions: { date: '2026-11-15', clientIP: '1.1.1.1', userAgent: 'Mozilla/5.0 (iPhone)', verifiedBotCategory: '', edgeResponseStatus: 200, edgeResponseContentTypeName: 'html', clientRequestQuery: '?t=20261121-d', ...d }
-	});
-	const hits = (/** @type {any[]} */ rows) => reply({ data: { viewer: { zones: [{ hits: rows }] } } });
-
-	it('reads the t code from a query with or without the question mark', () => {
-		expect(parseCode('?t=20261121-d')).toBe('20261121-d');
-		expect(parseCode('a=1&t=x')).toBe('x');
-		expect(parseCode('a=1')).toBeNull();
-		expect(parseCode('t=' + 'x'.repeat(65))).toBeNull();
-		expect(parseCode(/** @type {any} */ (undefined))).toBeNull();
-	});
-
-	it('is not configured without a token, and does not call out', async () => {
-		const f = vi.fn();
-		expect(await fetchCodes({ fetchImpl: f })).toEqual({ configured: false, codes: [] });
-		expect(f).not.toHaveBeenCalled();
-	});
-
-	it('counts visits and distinct visitors per code, and ignores bots and previews', async () => {
-		const f = vi.fn(async () =>
-			hits([
-				row({}, 2),
-				row({ date: '2026-11-16', clientIP: '2.2.2.2' }),
-				row({ userAgent: 'Slackbot-LinkExpanding 1.0' }),
-				row({ verifiedBotCategory: 'Search Engine Crawler' }),
-				row({ edgeResponseStatus: 304 }),
-				row({ clientRequestQuery: 't=other' }),
-				row({ clientRequestQuery: 'x=1' })
-			])
-		);
-		const out = await fetchCodes({ token: 't', zoneId: 'z', now: NOW, fetchImpl: f });
-		expect(out.error).toBeUndefined();
-		const c = out.codes.find((x) => x.code === '20261121-d');
-		expect(c).toMatchObject({ requests: 6, visits: 3, visitors: 2, first: '2026-11-15', last: '2026-11-16' });
-		expect(c?.days).toEqual([
-			{ date: '2026-11-15', visits: 2, visitors: 1 },
-			{ date: '2026-11-16', visits: 1, visitors: 1 }
-		]);
-		expect(out.codes.map((x) => x.code)).toEqual(['20261121-d', 'other']);
-	});
-
-	it('reports a Cloudflare error instead of throwing', async () => {
-		const out = await fetchCodes({ token: 't', zoneId: 'z', fetchImpl: async () => reply({}, 500) });
-		expect(out).toMatchObject({ configured: true, codes: [] });
-		expect(out.error).toContain('500');
 	});
 });

@@ -57,22 +57,23 @@
 			<section class="panel">
 				<p class="note">
 					Visits through a <code>?t=</code> link, such as a printed QR code. A visit is a page load in a
-					browser that is not a known bot. Visitors are distinct addresses, so one person scanning twice
-					from the same network is one visitor and two visits. Cloudflare keeps about 30 days.
+					browser that is not a known bot. A visitor is one address on one day, so a person
+					who comes back on another day counts again. Counting began when this went live; earlier visits
+					are not in it.
 				</p>
 				{#if codes.codes.length === 0}
-					<p class="empty">No visits with a code in the last 30 days.</p>
+					<p class="empty">No visits through a code yet.</p>
 				{:else}
 					<ul class="rows">
 						{#each codes.codes as c (c.code)}
-							<li title="{n(c.requests)} requests in all, first {c.first ? shortDate(c.first) : 'never'}, last {c.last ? shortDate(c.last) : 'never'}">
+							<li title="First {shortDate(c.first)}, last {shortDate(c.last)}">
 								<span class="row-name mono">{c.code}</span>
 								<span class="row-bar"><span class="good" style="width: {(c.visits / maxCode) * 100}%"></span></span>
 								<span class="row-num">{n(c.visits)} / {n(c.visitors)}</span>
 							</li>
 						{/each}
 					</ul>
-					<p class="note">Visits / visitors. Hover a row for the request total and the dates.</p>
+					<p class="note">Visits / visitors. Hover a row for the first and last dates.</p>
 				{/if}
 			</section>
 		{/if}

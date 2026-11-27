@@ -131,3 +131,30 @@ describe('page load', () => {
 		expect(data).toEqual({ providers: [{ id: 'github', label: 'GitHub' }], join: 'ok', via: 'github' });
 	});
 });
+
+describe('load: campaign code visits', () => {
+	const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)';
+	/** @param {string} search @param {Record<string, string>} headers */
+	const run = async (search, headers) => {
+		const kv = memoryKV();
+		const puts = [];
+		const wk = /** @type {any} */ ({ ...kv, getWithMetadata: async () => ({ metadata: null }), put: async (/** @type {string} */ k) => void puts.push(k) });
+		await load(/** @type {any} */ ({
+			platform: { env: { WAITLIST: wk } },
+			url: new URL(`https://ammoura.me/${search}`),
+			request: new Request('https://ammoura.me/', { headers }),
+			getClientAddress: () => '9.9.9.9'
+		}));
+		return puts;
+	};
+
+	it('counts a document load that carries a code', async () => {
+		expect(await run('?t=20261121-d', { 'user-agent': UA, 'sec-fetch-dest': 'document' })).toHaveLength(1);
+	});
+
+	it('does not count a data refetch, a bot, or a visit without a code', async () => {
+		expect(await run('?t=20261121-d', { 'user-agent': UA, 'sec-fetch-dest': 'empty' })).toHaveLength(0);
+		expect(await run('?t=20261121-d', { 'user-agent': 'curl/8' })).toHaveLength(0);
+		expect(await run('', { 'user-agent': UA })).toHaveLength(0);
+	});
+});

@@ -9,9 +9,28 @@ import {
 	checkRateLimit,
 	recordRateLimit
 } from '$lib/waitlist.js';
+import { recordCode } from '$lib/codes.js';
 
 /** @type {import('./$types').PageServerLoad} */
-export async function load({ platform, url }) {
+export async function load({ platform, url, request, getClientAddress }) {
+	// Count a visit through a ?t= code. A data refetch after a form action reloads
+	// this with the same URL, so only the document request itself counts.
+	const dest = url.searchParams.has('t') ? request.headers.get('sec-fetch-dest') : 'empty';
+	if (url.searchParams.has('t') && (!dest || dest === 'document')) {
+		let ip = request.headers.get('cf-connecting-ip');
+		if (!ip) {
+			try { ip = getClientAddress(); } catch { /* unavailable */ }
+		}
+		const counted = recordCode(platform?.env?.WAITLIST, {
+			code: url.searchParams.get('t'),
+			ip,
+			userAgent: request.headers.get('user-agent')
+		});
+		// Do not make the visitor wait on KV.
+		if (platform?.context?.waitUntil) platform.context.waitUntil(counted);
+		else await counted;
+	}
+
 	// Only offer providers that actually have credentials — a button that
 	// 503s is worse than no button.
 	return {
