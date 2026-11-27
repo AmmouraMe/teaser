@@ -45,6 +45,19 @@ describe('OAuth join callback', () => {
 		expect(f).toHaveBeenCalledOnce();
 	});
 
+	it('sends the visitor back with "failed" when the provider call throws', async () => {
+		const oauth = await import('$lib/oauth.js');
+		vi.mocked(oauth.exchangeCode).mockRejectedValueOnce(new Error('network down'));
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		const kv = memoryKV();
+		expect(await join({ WAITLIST: kv })).toBe('/?join=failed');
+		expect(kv.store.size).toBe(0);
+
+		vi.mocked(oauth.fetchIdentity).mockRejectedValueOnce(new SyntaxError('bad json'));
+		expect(await join({ WAITLIST: kv })).toBe('/?join=failed');
+		expect(kv.store.size).toBe(0);
+	});
+
 	it('treats a repeat signup as success without writing or posting', async () => {
 		const f = vi.fn(async () => new Response(null, { status: 204 }));
 		vi.stubGlobal('fetch', f);

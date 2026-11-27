@@ -56,10 +56,20 @@ async function finish({ params, url, platform, cookies, request, getClientAddres
 	const env = platform?.env ?? {};
 	const redirectUri = `${url.origin}/auth/join/${provider}/callback`;
 
-	const tokens = await exchangeCode(provider, { code, redirectUri, env });
+	// A provider outage, a dropped connection or a malformed reply throws here.
+	// The visitor gets the same "failed" screen as a refused exchange, not a 500.
+	// (`back` throws a redirect, so it stays outside the try.)
+	let tokens;
+	let identity;
+	try {
+		tokens = await exchangeCode(provider, { code, redirectUri, env });
+		if (tokens) identity = await fetchIdentity(provider, tokens);
+	} catch (err) {
+		console.error(`join: ${provider} request threw`, err);
+		return back('failed');
+	}
 	if (!tokens) return back('failed');
 
-	const identity = await fetchIdentity(provider, tokens);
 	// The provider authenticated them but gave us no email — a GitHub account
 	// with nothing verified, or Apple's relay declined. Send them to the email
 	// field rather than failing silently.

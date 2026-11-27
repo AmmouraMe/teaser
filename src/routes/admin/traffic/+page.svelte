@@ -45,6 +45,7 @@
 	<nav class="tab-bar" aria-label="Admin sections">
 		<a class="tab" href="/admin">Waitlist</a>
 		<a class="tab active" href="/admin/traffic" aria-current="page">Traffic</a>
+		<a class="tab" href="/admin/spacebot">SpaceBot</a>
 	</nav>
 
 	{#if codes.configured}

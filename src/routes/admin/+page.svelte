@@ -89,6 +89,7 @@
 	<nav class="section-nav" aria-label="Admin sections">
 		<a class="section-tab active" href="/admin" aria-current="page">Waitlist</a>
 		<a class="section-tab" href="/admin/traffic">Traffic</a>
+		<a class="section-tab" href="/admin/spacebot">SpaceBot</a>
 	</nav>
 
 	{#if data.entries.length === 0 && data.archivedEntries.length === 0}
