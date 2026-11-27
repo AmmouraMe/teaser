@@ -3,6 +3,8 @@
 	let { data } = $props();
 
 	const t = $derived(data.traffic);
+	const codes = $derived(data.codes);
+	const maxCode = $derived(Math.max(1, ...codes.codes.map((c) => c.visits)));
 	const fmt = new Intl.NumberFormat('en-US');
 	/** @param {number} n */
 	const n = (n) => fmt.format(n);
@@ -44,6 +46,37 @@
 		<a class="tab" href="/admin">Waitlist</a>
 		<a class="tab active" href="/admin/traffic" aria-current="page">Traffic</a>
 	</nav>
+
+	{#if codes.configured}
+		<h2 class="section">Campaign codes (?t=)</h2>
+		{#if codes.error}
+			<section class="panel problem" role="alert">
+				<p>{codes.error}</p>
+			</section>
+		{:else}
+			<section class="panel">
+				<p class="note">
+					Visits through a <code>?t=</code> link, such as a printed QR code. A visit is a page load in a
+					browser that is not a known bot. Visitors are distinct addresses, so one person scanning twice
+					from the same network is one visitor and two visits. Cloudflare keeps about 30 days.
+				</p>
+				{#if codes.codes.length === 0}
+					<p class="empty">No visits with a code in the last 30 days.</p>
+				{:else}
+					<ul class="rows">
+						{#each codes.codes as c (c.code)}
+							<li title="{n(c.requests)} requests in all, first {c.first ? shortDate(c.first) : 'never'}, last {c.last ? shortDate(c.last) : 'never'}">
+								<span class="row-name mono">{c.code}</span>
+								<span class="row-bar"><span class="good" style="width: {(c.visits / maxCode) * 100}%"></span></span>
+								<span class="row-num">{n(c.visits)} / {n(c.visitors)}</span>
+							</li>
+						{/each}
+					</ul>
+					<p class="note">Visits / visitors. Hover a row for the request total and the dates.</p>
+				{/if}
+			</section>
+		{/if}
+	{/if}
 
 	{#if !t.configured}
 		<section class="panel setup">

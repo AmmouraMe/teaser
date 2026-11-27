@@ -1,5 +1,5 @@
 import { redirect } from '@sveltejs/kit';
-import { fetchTraffic } from '$lib/traffic.js';
+import { fetchTraffic, fetchCodes } from '$lib/traffic.js';
 
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ locals, platform }) {
@@ -12,5 +12,6 @@ export async function load({ locals, platform }) {
 	// cut in the viewer's own time zone. Without it they are UTC, and say so.
 	const timeZone = /** @type {any} */ (platform)?.cf?.timezone;
 	const traffic = await fetchTraffic({ token: env?.CF_API_TOKEN, zoneId: env?.CF_ZONE_ID, timeZone });
-	return { traffic, user: locals.user };
+	const codes = await fetchCodes({ token: env?.CF_API_TOKEN, zoneId: env?.CF_ZONE_ID });
+	return { traffic, codes, user: locals.user };
 }
