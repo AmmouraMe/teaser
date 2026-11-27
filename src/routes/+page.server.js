@@ -9,7 +9,8 @@ import {
 	checkRateLimit,
 	recordRateLimit
 } from '$lib/waitlist.js';
-import { recordCode } from '$lib/codes.js';
+import { recordCode, cleanCode } from '$lib/codes.js';
+import { notifySignup } from '$lib/spacebot.js';
 
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ platform, url, request, getClientAddress }) {
@@ -94,6 +95,26 @@ export const actions = {
 
 		// Never throws; the entry is already saved.
 		await notifyJoin(platform?.env?.DISCORD_WEBHOOK_URL, entry);
+
+		// Tell SpaceBot, if connected. No name or email. Never slows or breaks signup.
+		const hook = (async () => {
+			let code = null;
+			try {
+				code = cleanCode(new URL(String(clientData?.pageUrl ?? '')).searchParams.get('t'));
+			} catch { /* no page URL */ }
+			let total;
+			try {
+				const n = parseInt((await kv?.get('counter:unique_emails')) || '', 10);
+				if (Number.isFinite(n)) total = n;
+			} catch { /* omit */ }
+			await notifySignup(kv, {
+				code,
+				country: serverData.country ?? null,
+				...(total === undefined ? {} : { total })
+			});
+		})().catch(() => {});
+		if (platform?.context?.waitUntil) platform.context.waitUntil(hook);
+		else await hook;
 
 		return { success: true, email };
 	}

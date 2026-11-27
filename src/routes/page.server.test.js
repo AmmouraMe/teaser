@@ -158,3 +158,31 @@ describe('load: campaign code visits', () => {
 		expect(await run('', { 'user-agent': UA })).toHaveLength(0);
 	});
 });
+
+describe('signup with SpaceBot connected', () => {
+	const conf = { url: 'https://bot.example.com/api/hooks/abc', secret: 'sbw_s', enabled: true, events: { signup: true, test: true } };
+
+	it('sends code, country and total, but no name or email', async () => {
+		const kv = memoryKV();
+		await kv.put('config:spacebot', JSON.stringify(conf));
+		const f = vi.fn(async () => new Response(null, { status: 202 }));
+		vi.stubGlobal('fetch', f);
+		const res = await submit(
+			{ email: 'a@person.dev', _clientData: '{"pageUrl":"https://ammoura.me/?t=20261121-d"}' },
+			{ WAITLIST: kv },
+			{ 'cf-ipcountry': 'NZ' }
+		);
+		expect(res).toMatchObject({ success: true });
+		const call = /** @type {any} */ (f.mock.calls.find((c) => String(c[0]).includes('/api/hooks/')));
+		const body = JSON.parse(call[1].body);
+		expect(body).toMatchObject({ event: 'signup', code: '20261121-d', country: 'NZ', total: 1 });
+		expect(call[1].body).not.toContain('person.dev');
+	});
+
+	it('still succeeds when SpaceBot is down', async () => {
+		const kv = memoryKV();
+		await kv.put('config:spacebot', JSON.stringify(conf));
+		vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('down'); }));
+		expect(await submit({ email: 'b@person.dev' }, { WAITLIST: kv })).toEqual({ success: true, email: 'b@person.dev' });
+	});
+});
