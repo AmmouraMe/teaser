@@ -58,22 +58,22 @@
 				<p class="note">
 					Visits through a <code>?t=</code> link, such as a printed QR code. A visit is a page load in a
 					browser that is not a known bot. A visitor is one address on one day, so a person
-					who comes back on another day counts again. Counting began when this went live; earlier visits
-					are not in it.
+					who comes back on another day counts again. Visits are counted from when this went live. Signups
+					are read from the page each one came from, so they reach back to the first.
 				</p>
 				{#if codes.codes.length === 0}
-					<p class="empty">No visits through a code yet.</p>
+					<p class="empty">No visits or signups through a code yet.</p>
 				{:else}
 					<ul class="rows">
 						{#each codes.codes as c (c.code)}
-							<li title="First {shortDate(c.first)}, last {shortDate(c.last)}">
+							<li title="First {c.first ? shortDate(c.first) : 'never'}, last {c.last ? shortDate(c.last) : 'never'}">
 								<span class="row-name mono">{c.code}</span>
 								<span class="row-bar"><span class="good" style="width: {(c.visits / maxCode) * 100}%"></span></span>
-								<span class="row-num">{n(c.visits)} / {n(c.visitors)}</span>
+								<span class="row-num">{n(c.visits)} / {n(c.visitors)} / {n(c.signups)}</span>
 							</li>
 						{/each}
 					</ul>
-					<p class="note">Visits / visitors. Hover a row for the first and last dates.</p>
+					<p class="note">Visits / visitors / signups. Hover a row for the first and last dates.</p>
 				{/if}
 			</section>
 		{/if}

@@ -56,10 +56,49 @@ export async function recordCode(kv, { code, ip, userAgent, now = new Date() }) 
 
 /**
  * @typedef {{
- *   code: string, visits: number, visitors: number, first: string, last: string,
+ *   code: string, visits: number, visitors: number, signups: number, first: string, last: string,
  *   days: Array<{ date: string, visits: number, visitors: number }>
  * }} CodeTraffic
  */
+
+/**
+ * Signups by the code on the page they signed up from. Every email entry keeps
+ * `client.pageUrl`, so this reaches back before the visit counter existed.
+ * @param {any} kv
+ * @returns {Promise<Map<string, { signups: number, first: string }>>}
+ */
+export async function signupsByCode(kv) {
+	/** @type {Map<string, { signups: number, first: string }>} */
+	const out = new Map();
+	let cursor;
+	let seen = 0;
+	do {
+		const page = await kv.list({ prefix: 'entry:', cursor });
+		for (const k of page.keys) {
+			if (++seen > 5000) return out;
+			let entry;
+			try {
+				entry = JSON.parse((await kv.get(k.name)) ?? 'null');
+			} catch {
+				continue;
+			}
+			let code = null;
+			try {
+				code = cleanCode(new URL(String(entry?.client?.pageUrl ?? '')).searchParams.get('t'));
+			} catch {
+				/* no page URL, or not a URL */
+			}
+			if (!code) continue;
+			const day = String(entry?.ts ?? '').slice(0, 10);
+			const cur = out.get(code) ?? { signups: 0, first: day };
+			cur.signups += 1;
+			if (day && (!cur.first || day < cur.first)) cur.first = day;
+			out.set(code, cur);
+		}
+		cursor = page.list_complete ? undefined : page.cursor;
+	} while (cursor);
+	return out;
+}
 
 /**
  * Every code's tally, most visited first.
@@ -87,6 +126,9 @@ export async function readCodes(kv) {
 			cursor = page.list_complete ? undefined : page.cursor;
 		} while (cursor);
 
+		const signups = await signupsByCode(kv).catch(() => new Map());
+		for (const code of signups.keys()) if (!byCode.has(code)) byCode.set(code, new Map());
+
 		const codes = [...byCode].map(([code, days]) => {
 			const list = [...days].map(([date, d]) => ({ date, ...d })).sort((a, b) => a.date.localeCompare(b.date));
 			return {
@@ -94,12 +136,13 @@ export async function readCodes(kv) {
 				visits: list.reduce((s, d) => s + d.visits, 0),
 				// A person back on a second day is a second key, so this over-counts them.
 				visitors: list.reduce((s, d) => s + d.visitors, 0),
-				first: list[0].date,
-				last: list[list.length - 1].date,
+				signups: signups.get(code)?.signups ?? 0,
+				first: list[0]?.date ?? signups.get(code)?.first ?? '',
+				last: list[list.length - 1]?.date ?? signups.get(code)?.first ?? '',
 				days: list
 			};
 		});
-		codes.sort((a, b) => b.visits - a.visits);
+		codes.sort((a, b) => b.visits - a.visits || b.signups - a.signups);
 		return { configured: true, codes };
 	} catch (err) {
 		return { configured: true, error: err instanceof Error ? err.message : 'Could not read the code counts.', codes: [] };

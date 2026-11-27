@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { cleanCode, recordCode, readCodes } from './codes.js';
+import { cleanCode, recordCode, readCodes, signupsByCode } from './codes.js';
 
 /** KV with metadata, which the shared helper does not have. */
 function kvWithMeta() {
@@ -15,6 +15,10 @@ function kvWithMeta() {
 		/** @param {string} k @param {string} v @param {{ metadata?: any }} o */
 		async put(k, v, o) {
 			store.set(k, { v, metadata: o?.metadata });
+		},
+		/** @param {string} k */
+		async get(k) {
+			return store.get(k)?.v ?? null;
 		},
 		/** @param {{ prefix?: string }} o */
 		async list(o) {
@@ -103,8 +107,30 @@ describe('readCodes', () => {
 		const list = vi.fn(async () => /** @type {any} */ (pages.shift()));
 		const out = await readCodes({ list });
 		expect(out.codes[0]).toMatchObject({ visits: 3, visitors: 2 });
-		expect(list).toHaveBeenCalledTimes(2);
+		// Two pages of counts, then the signup scan, which this fake has nothing for.
+		expect(list.mock.calls.filter(([o]) => /** @type {any} */ (o).prefix === 'code:')).toHaveLength(2);
 		const bad = await readCodes({ list: vi.fn().mockRejectedValue(new Error('kv down')) });
 		expect(bad).toMatchObject({ configured: true, codes: [], error: 'kv down' });
+	});
+});
+
+describe('signups by code', () => {
+	/** @param {any} kv @param {string} id @param {any} entry */
+	const entry = (kv, id, entry) => kv.store.set(`entry:${id}`, { v: JSON.stringify(entry), metadata: null });
+
+	it('counts signups by the code on the page they came from, before any visit was counted', async () => {
+		const kv = kvWithMeta();
+		entry(kv, '1', { ts: '2026-11-14T10:00:00Z', client: { pageUrl: 'https://ammoura.me/?t=20261121-d' } });
+		entry(kv, '2', { ts: '2026-11-13T10:00:00Z', client: { pageUrl: 'https://ammoura.me/?t=20261121-d&utm_source=qr' } });
+		entry(kv, '3', { ts: '2026-11-15T10:00:00Z', client: { pageUrl: 'https://ammoura.me/' } });
+		entry(kv, '4', { ts: '2026-11-15T10:00:00Z', client: { pageUrl: 'not a url' } });
+		entry(kv, '5', { ts: '2026-11-15T10:00:00Z' });
+		kv.store.set('entry:6', { v: '{bad', metadata: null });
+		const out = await signupsByCode(kv);
+		expect([...out]).toEqual([['20261121-d', { signups: 2, first: '2026-11-13' }]]);
+		const all = await readCodes(kv);
+		expect(all.codes).toEqual([
+			expect.objectContaining({ code: '20261121-d', visits: 0, visitors: 0, signups: 2, first: '2026-11-13', days: [] })
+		]);
 	});
 });
