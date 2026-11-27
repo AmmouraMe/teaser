@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { page } from '$app/stores';
 	import { replaceState } from '$app/navigation';
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import Seo from '$lib/components/Seo.svelte';
 	import {
 		SITE_NAME,
@@ -2049,11 +2049,12 @@
 
 	// Initialised from the load data, not an $effect, so the server renders
 	// the confirmation directly instead of flashing the signup form first.
-	let submitted = $state(data.join === 'ok');
+	// untrack: only the first value is wanted, so the compiler warning is noise.
+	let submitted = $state(untrack(() => data.join === 'ok'));
 	let submitting = $state(false);
 	let formError = $state('');
 	// Signed in with Discord: already connected, so offer the server instead.
-	let discordLinked = $state(data.join === 'ok' && data.via === 'discord');
+	let discordLinked = $state(untrack(() => data.join === 'ok' && data.via === 'discord'));
 
 	let email = $state('');
 	let clientData = $state('{}');
